@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">PoC TA</string>
+    <string name="enter_your_pin">Enter your PIN....</string>
+    <string name="ok">OK</string>
+    <string name="forgot_your_pin">Forgot Your PIN?</string>
+    <string name="welcome_text">Welcome to the World. Please enter your PIN in the text field below</string>
+    <string name="hub_header_text">Welcome! Please tap \'Turn On Bluetooth\' button to enable Bluetooth, then tap \'Refresh List\' to see paired devices</string>
+    <string name="changePinButton">Change my PIN</string>
+    <string name="refreshListButton">Refresh List</string>
+    <string name="enableBtButton">Turn On Bluetooth</string>
+    <string name="btAdapter_null_message">Your device doesn\'t support Bluetooth :(</string>
+    <string name="hub_no_paired_device">No paired devices found</string>
+    <string name="send">Send</string>
+    <string name="default_chat">Test 123</string>
+    <string name="chat_hint">Enter your message here</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+</resources>
