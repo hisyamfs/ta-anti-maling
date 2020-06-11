@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.content.res.Resources
+import android.os.Bundle
 import android.util.Log
 import java.io.IOException
 import java.io.InputStream
@@ -47,7 +49,7 @@ class MyBluetoothService(context: Context) {
     @Synchronized fun start() {
         Log.d(TAG, "start")
         // Cancel running threads
-        _stop()
+        stop()
         // Start the thread to listen on a BluetoothSocket
         if (btAcceptThread == null) {
             btAcceptThread = AcceptThread()
@@ -55,25 +57,23 @@ class MyBluetoothService(context: Context) {
         }
     }
 
-    @Synchronized fun startClient(device: BluetoothDevice?, uuid: UUID) {
+    fun startClient(device: BluetoothDevice?, uuid: UUID) {
         Log.d(TAG, "start client: started")
         // Cancel any running threads
-        _stop()
-        // Start connect thread
+        stop()
+        // connect
         btConnectThread = ConnectThread(device, uuid)
         btConnectThread?.start()
     }
 
-    @Synchronized fun connected(socket: BluetoothSocket?, device: BluetoothDevice?) {
+    fun connected(socket: BluetoothSocket?, device: BluetoothDevice?) {
         Log.d(TAG, "connected: starting....")
-        // Cancel any running thread
-        _stop()
-        // Start connected thread
+        // Start the thread
         btConnectedThread = ConnectedThread(socket)
         btConnectedThread?.start()
     }
 
-    private fun _stop() {
+    fun stop() {
         // Cancel any thread
         if (btConnectThread != null) {
             btConnectThread?.cancel()
@@ -83,6 +83,7 @@ class MyBluetoothService(context: Context) {
             btConnectedThread?.cancel()
             btConnectedThread = null
         }
+
         if (btAcceptThread != null) {
             btAcceptThread?.cancel()
             btAcceptThread = null
@@ -90,26 +91,9 @@ class MyBluetoothService(context: Context) {
         btState = STATE_NONE
     }
 
-    @Synchronized fun stop() {
-        // Cancel any thread
-        if (btConnectThread != null) {
-            btConnectThread?.cancel()
-            btConnectThread = null
-        }
-        if (btConnectedThread != null) {
-            btConnectedThread?.cancel()
-            btConnectedThread = null
-        }
-        if (btAcceptThread != null) {
-            btAcceptThread?.cancel()
-            btAcceptThread = null
-        }
-        btState = STATE_NONE
-    }
-
-    fun write(out: ByteArray) {
+    fun write(bytes: ByteArray) {
         Log.d(TAG, "write: write called.")
-        btConnectedThread?.write(out)
+        btConnectedThread?.write(bytes)
     }
 
     private inner class AcceptThread : Thread() {
