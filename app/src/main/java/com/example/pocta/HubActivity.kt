@@ -17,6 +17,10 @@ class HubActivity : AppCompatActivity() {
     private lateinit var btDevices: Set<BluetoothDevice>
     private val REQUEST_ENABLE = 1
 
+    companion object {
+        const val EXTRA_ADDRESS: String = "com.example.pocta.hub.EXTRA_ADDRESS"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_hub)
@@ -32,11 +36,11 @@ class HubActivity : AppCompatActivity() {
         else {
             // Set the listeners
             binding.apply {
-                enableBtButton.setOnClickListener { it: View -> enableBluetooth(it) }
-                refreshListButton.setOnClickListener { it: View -> listPairedDevices(it) }
+                enableBtButton.setOnClickListener { enableBluetooth(it) }
+                refreshListButton.setOnClickListener { listPairedDevices(it) }
             }
         }
-        binding.changePinButton.setOnClickListener { it: View ->
+        binding.changePinButton.setOnClickListener {
             changePin(it)
         }
     }
@@ -56,17 +60,33 @@ class HubActivity : AppCompatActivity() {
         if (btAdapter!!.isEnabled) {
             btDevices = btAdapter!!.bondedDevices
             val list = ArrayList<String>() // empty list
+            val dict = HashMap<String, String>()
             if (btDevices.isNotEmpty()) {
                 for (device in btDevices) {
                     list.add(device.name)
+                    dict[device.name] = device.address
                 }
+
                 val numDevices: Int = list.size
                 val listAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
                 val scoreDevices: String = "Found $numDevices paired devices"
+
                 binding.apply {
                     hubHeaderText.text = scoreDevices
                     pairedDevicesList.adapter = listAdapter
                     pairedDevicesList.visibility = View.VISIBLE
+                    pairedDevicesList.setOnItemClickListener { _, _, position, _ ->
+                        val selectedAddress: String? = dict[list[position]]
+                        if (selectedAddress != null) {
+                            val startConnect =
+                                Intent(this@HubActivity, ConnectActivity::class.java).apply {
+                                    putExtra(EXTRA_ADDRESS, selectedAddress)
+                                }
+                            startActivity(startConnect)
+                        } else {
+                            Toast.makeText(this@HubActivity, "Null Address????", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
             } else {
                 binding.apply {

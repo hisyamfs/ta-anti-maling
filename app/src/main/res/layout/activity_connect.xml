@@ -43,8 +43,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 android:layout_gravity="center_horizontal"
-                android:text="@string/send"
-                android:visibility="gone"/>
+                android:text="@string/send" />
 
             <Button
                 android:id="@+id/connectButton"
@@ -60,8 +59,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 android:layout_gravity="center_horizontal"
-                android:text="@string/disconnect"
-                android:visibility="gone"/>
+                android:text="@string/disconnect" />
         </LinearLayout>
     </LinearLayout>
 </layout>
