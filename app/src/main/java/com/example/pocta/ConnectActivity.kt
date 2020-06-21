@@ -15,9 +15,54 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
+import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 import java.security.*
+import java.security.cert.Certificate
+import java.security.cert.CertificateFactory
+import java.security.spec.InvalidKeySpecException
+import java.security.spec.PKCS8EncodedKeySpec
 import javax.crypto.Cipher
+
+private val pubkey = """
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5kgyBmqVI5d4nb+/hbce
+    rtu8OWBGXhqSqvwjdoR9YkkfWt+nRubjzEFehdVuJ5KtUKFwO8vhnWyPUHPqNha0
+    fw1aR53k/UtniyDG35/pwpSGfOttPyTDLqb+xvbggwkicI63eeQBzfXpI26qEhcD
+    jMa5om+asWNOEpdqm+2cAoHuIII179SfJPQBo72/11fAj+9TeM3unC8AHUQahkIn
+    fW2Pt3MZjb7Bff+5HCJZM/gj5Qxvd87eP63eiUBq8bbcnMn5PFJpdHVQbQ9x6Wb0
+    uZx3CXCmxXz3EI97KoIuLds/zU4vHCw1YUoHRyk08OpN6H6JyMD7PuXRnYjpLVMc
+    4QIDAQAB
+    -----END PUBLIC KEY-----""".trimIndent()
+
+private val privkey = """
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEpAIBAAKCAQEA5kgyBmqVI5d4nb+/hbcertu8OWBGXhqSqvwjdoR9YkkfWt+n
+    RubjzEFehdVuJ5KtUKFwO8vhnWyPUHPqNha0fw1aR53k/UtniyDG35/pwpSGfOtt
+    PyTDLqb+xvbggwkicI63eeQBzfXpI26qEhcDjMa5om+asWNOEpdqm+2cAoHuIII1
+    79SfJPQBo72/11fAj+9TeM3unC8AHUQahkInfW2Pt3MZjb7Bff+5HCJZM/gj5Qxv
+    d87eP63eiUBq8bbcnMn5PFJpdHVQbQ9x6Wb0uZx3CXCmxXz3EI97KoIuLds/zU4v
+    HCw1YUoHRyk08OpN6H6JyMD7PuXRnYjpLVMc4QIDAQABAoIBAQCUMXu381kcuXqO
+    kfovk+O0BYaAqfs+zfz6+h3cRHDoEkSSV4GvuCB6rsqkd/BWmSbdz7aJVLBRfa5Q
+    yPe9bSkk5jPmCK93bdIpj6NL//4QEULnGx6H1yGgYSluYyuiR/uY0c8zKs8aexlY
+    ivv5fkPzkWOfLBEx/MUeY8Dgra2LUleopkHhem7tXVsUrSZkD5R/amlTZpS2/dAH
+    91g0hqRoFWypiwqYdsajl+ord4y/QfOieLMf4BldAE2nnEYnXHk9vFgu8Bl2N4R/
+    D4T47ghLLrwsf5/Xr9AGL9BB/SXOxrCL0HxvBTCKP0VmAxrRNeS5/1jWkklj/G6m
+    et6vPEnRAoGBAPRRtoGLOwvRW5hODUwkxgFQ2R3etOlwDnf+sBA9/WRSNLRa7Pys
+    KNKQvDL7RPNHeNTnC+Ezim5CIFXHGDRohIiYBGyOIxZcAuJLRpH6/jAvaalC7iuZ
+    zuC9YDnTWuaaPGRivEzHV3wIuvG+PX12ZMXhF6MjUXuwxu40DhsOFLLVAoGBAPFK
+    rYJwXI7UdvUQkDU+GW/0ajHaE1aJWijfBg6XvkuWI6AxGF+XyPZ1Fmz44kC3WcXN
+    geDefDA/05oItWCMWWJ4TCOSTcsVk3bvmrTeTLFgLp6UhmA/nzSYhDnI2N6H1fO5
+    LnmfKOR+mbVr7XpgaRNp7D2P8nnOJcSNjmqJsU/dAoGAJeQWXfjt62NIxVI1lb2O
+    R932Dj/f5uROGiYRwDMc/VYSfnYrkvRQUHfJ+E4n32MSRlKe8QpBSeBPi34ZLueW
+    xmhtJzjUED+s4tOx2ioHCgoQZQPQVErCXvB/3/f7fRAmlZsKgQ3Zb48bDyrl9nNK
+    JbZHKDHuDTTZZVAFcAS7CRECgYA+olfv6CLeoKBQdQA6Eeigex2l2ynx6K2StnHo
+    D9PB4zNUPepJxijQcQxlNSXmDrIq+nGgYaBzFd5juab7bPM28GszQKMY+HzS/td1
+    486crI7tczh+e4VkLcMFDPHesfwDzCoYQAxpY8OaqG14utYLyA8e2+LhY3XCU8yI
+    Mz3nsQKBgQCjiVQzAplD9q4QyMn75oPH+hNwyx1Rx6g2uyMyH6xBnwiBRCrV+GYf
+    aNaJ1zBrOWKzkfhN3SIw5GwL7iXTD+gjb++iRjhglyUnt63bnrvU4H7stXyDfd/k
+    95cmcIqfnYQ9/NzpHCOVLePKdnF+WPYbhLdjTuCOrOGuQHl8i95g3g==
+    -----END RSA PRIVATE KEY-----""".trimIndent()
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
@@ -32,6 +77,9 @@ class ConnectActivity : AppCompatActivity() {
     companion object {
         var message: String = "Default"
         const val KEY_ALIAS = "keyaliashisyam"
+        const val KEY_ALIAS_DEF = "keyaliascoba"
+        const val USE_DEF_KEY = true
+        const val lt = "ConnectActivity"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +105,8 @@ class ConnectActivity : AppCompatActivity() {
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
+
+        if (USE_DEF_KEY) setDefaultKeyPair()
     }
 
     override fun onDestroy() {
@@ -153,13 +203,56 @@ class ConnectActivity : AppCompatActivity() {
     private fun getAsymmetricKeyPair(): KeyPair? {
         val keyStore: KeyStore = createKeyStore()
 
-        val privateKey = keyStore.getKey(KEY_ALIAS, null) as PrivateKey?
-        val publicKey = keyStore.getCertificate(KEY_ALIAS)?.publicKey
+        val alias: String = if (USE_DEF_KEY) {
+            KEY_ALIAS_DEF
+        } else {
+            KEY_ALIAS
+        }
+
+        val privateKey = keyStore.getKey(alias, null) as PrivateKey?
+        val publicKey = keyStore.getCertificate(alias)?.publicKey
 
         return if (privateKey != null && publicKey != null) {
             KeyPair(publicKey, privateKey)
         } else {
             null
+        }
+    }
+
+    private fun setDefaultKeyPair() {
+        val keyStore: KeyStore = createKeyStore()
+
+        Log.i(lt, "ConnectActivity: accessing default keypair.")
+        val privateKey = keyStore.getKey(KEY_ALIAS_DEF, null) as PrivateKey?
+        val publicKey = keyStore.getCertificate(KEY_ALIAS_DEF)?.publicKey
+
+        if (privateKey == null && publicKey == null) {
+            Log.i(lt, "ConnectActivity: no default keypair found. generating default keypair.")
+            val privkeystring = privkey.replace("\n", "")
+                .replace("-----BEGIN RSA PRIVATE KEY-----", "")
+                .replace("-----END RSA PRIVATE KEY-----", "")
+            val pubkeystring = pubkey.replace("\n", "")
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+
+            try {
+                val pk: PrivateKey = KeyFactory.getInstance("RSA").generatePrivate(
+                    PKCS8EncodedKeySpec(Base64.decode(privkeystring, Base64.DEFAULT))
+                )
+                val cert: Certificate = CertificateFactory.getInstance("X.509").generateCertificate(
+                    ByteArrayInputStream(Base64.decode(pubkeystring, Base64.DEFAULT))
+                )
+
+                Log.i(lt, "ConnectActivity: loading default keypair.")
+                val ks = KeyStore.getInstance("AndroidKeyStore")
+                val certArray: Array<Certificate> = arrayOf(cert)
+                ks.load(null)
+                ks.setKeyEntry(KEY_ALIAS_DEF, pk, null, certArray)
+            } catch (e: KeyStoreException) {
+                Log.e(lt, "ConnectActivity: error while loading keypair", e)
+            } catch (e2: InvalidKeySpecException) {
+                Log.e(lt, "ConnectActivity: invalid key spec", e2)
+            }
         }
     }
 
