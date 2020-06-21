@@ -8,20 +8,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="bottom">
-
-        <TextView
-            android:id="@+id/chatField"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/default_chat"
-            android:layout_gravity="start"
-            android:textAlignment="viewStart"
-            android:layout_margin="8dp"
-            android:textSize="20sp"
-            android:textColor="@color/colorAccent"
-            />
+        android:orientation="vertical">
 
         <EditText
             android:id="@+id/userInput"
@@ -61,5 +48,42 @@
                 android:layout_gravity="center_horizontal"
                 android:text="@string/disconnect" />
         </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_horizontal">
+
+            <Button
+                android:id="@+id/encryptButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/encrypt"
+                android:layout_margin="8dp"
+                android:layout_gravity="center_horizontal"/>
+
+            <Button
+                android:id="@+id/decryptButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/decrypt"
+                android:layout_margin="8dp"
+                android:layout_gravity="center_horizontal" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/chatField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/default_chat"
+            tools:text="@string/loremipsum"
+            android:layout_gravity="start"
+            android:textAlignment="viewStart"
+            android:layout_margin="8dp"
+            android:textSize="20sp"
+            android:textColor="@color/colorAccent"
+            android:scrollbars="vertical"
+            />
     </LinearLayout>
 </layout>
