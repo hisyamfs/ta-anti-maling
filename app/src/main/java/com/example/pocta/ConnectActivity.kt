@@ -1,10 +1,13 @@
 package com.example.pocta
 
+import android.annotation.SuppressLint
 import android.annotation.TargetApi
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Message
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.text.method.ScrollingMovementMethod
@@ -13,6 +16,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
+import com.example.pocta.MyBluetoothService.Companion.MESSAGE_WRITE
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
 import java.nio.charset.Charset
@@ -30,6 +35,7 @@ class ConnectActivity : AppCompatActivity() {
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
     private lateinit var encryptedMsg: String
+    private var IS_ENCRYPTED = false
 
     private val pubkey = """
     -----BEGIN PUBLIC KEY-----
@@ -99,7 +105,7 @@ class ConnectActivity : AppCompatActivity() {
         }
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
-        myBluetoothService = MyBluetoothService(this)
+        myBluetoothService = MyBluetoothService(this, myHandler)
         myRSAKeyPair = if (USE_DEF_KEY) {
             getDefaultKeyPair()
         } else {
@@ -152,13 +158,14 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun encryptMyMessage() {
 //        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        IS_ENCRYPTED = true
         val toEncrypt = binding.userInput.text.toString()
         val encryptedBytes = encrypt(toEncrypt, myRSAKeyPair.public)
         encryptedMsg = Base64.encodeToString(encryptedBytes, Base64.DEFAULT)
         myBluetoothService.write(encryptedBytes)
-//        myBluetoothService.write(encryptedMsg.toByteArray(Charset.defaultCharset()))
-        val chatUpdate = "${binding.chatField.text} \nEncrypted: $encryptedMsg"
-        binding.chatField.text = chatUpdate
+////        myBluetoothService.write(encryptedMsg.toByteArray(Charset.defaultCharset()))
+//        val chatUpdate = "${binding.chatField.text} \nEncrypted: $encryptedMsg"
+//        binding.chatField.text = chatUpdate
         Log.d(lt, "ConnectActivity: encrypted string: $encryptedMsg")
     }
 
@@ -171,11 +178,10 @@ class ConnectActivity : AppCompatActivity() {
         // TODO("Ubah myBluetoothService agar mengecek pesan terkirim atau tidak")
         // TODO("Ubah sendMessage agar memberi sinyal apakah pesan terkirim atau tidak")
         // TODO("Ubah myBluetoothService agar dapat menyalurkan pesan yang diterima ke ConnectActivity")
+        IS_ENCRYPTED = false
         message = binding.userInput.text.toString()
-        val bytes = "$message\n".toByteArray(Charset.defaultCharset())
+        val bytes = message.toByteArray(Charset.defaultCharset())
         myBluetoothService.write(bytes)
-        val chatUpdate = "${binding.chatField.text} \nYou: $message"
-        binding.chatField.text = chatUpdate
     }
 
     private fun connectToDevice() {
@@ -186,6 +192,34 @@ class ConnectActivity : AppCompatActivity() {
         myBluetoothService.startClient(btDevice, uuid)
     }
 
+    private val myHandler = @SuppressLint("HandlerLeak")
+    object: Handler() {
+        override fun handleMessage(msg: Message) {
+            when (msg.what) {
+                MESSAGE_READ -> {
+                    // update the text
+                    val readBuf = msg.obj as ByteArray
+                    val readMessage = String(readBuf, 0, msg.arg1)
+                    val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $readMessage"
+                    binding.chatField.text = chatUpdate
+                }
+                MESSAGE_WRITE -> {
+                    // update the text
+                    val writeBuf = msg.obj as ByteArray
+                    val writeMessage = if (IS_ENCRYPTED) {
+                        Base64.encodeToString(writeBuf, Base64.DEFAULT)
+                    } else {
+                        String(writeBuf)
+                    }
+                    val chatUpdate = "${binding.chatField.text} \nYou: $writeMessage"
+                    binding.chatField.text = chatUpdate
+                    IS_ENCRYPTED = false
+                }
+            }
+        }
+    }
+
+    // Encryption/decryption function
     private fun encrypt(data: String, publicKey: Key?): ByteArray {
         val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.ENCRYPT_MODE, publicKey)

@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.res.Resources
 import android.os.Bundle
+import android.os.Handler
 import android.util.Log
 import java.io.IOException
 import java.io.InputStream
@@ -14,7 +15,7 @@ import java.io.OutputStream
 import java.nio.charset.Charset
 import java.util.*
 
-class MyBluetoothService(context: Context) {
+class MyBluetoothService(context: Context, handler: Handler) {
     private var btAdapter: BluetoothAdapter? = null
     private var btAcceptThread: AcceptThread? = null
     private var btConnectThread: ConnectThread? = null
@@ -23,6 +24,7 @@ class MyBluetoothService(context: Context) {
     private var btState : Int = 0
     private var btNewState : Int = 0
     private var btContext: Context? = null
+    private var btHandler: Handler? = null
     private val TAG = "MY_BLUETOOTH_SERVICE"
 
     companion object {
@@ -44,6 +46,7 @@ class MyBluetoothService(context: Context) {
         btState = STATE_NONE
         btNewState = btState
         btContext = context
+        btHandler = handler
     }
 
     @Synchronized fun start() {
@@ -219,7 +222,9 @@ class MyBluetoothService(context: Context) {
             while (true) {
                 try {
                     numBytes = mmInStream?.read(mmBuffer) ?: 0
-                    val incomingMessage = mmBuffer.toString(Charset.defaultCharset())
+                    btHandler?.obtainMessage(MESSAGE_READ, numBytes, -1, mmBuffer)
+                        ?.sendToTarget()
+                    val incomingMessage = String(mmBuffer, 0, numBytes)
                     Log.d(TAG, "connected thread: input stream: $incomingMessage")
                 } catch (e: IOException) {
                     Log.e(TAG, "connected thread: error reading in stream", e)
@@ -233,6 +238,9 @@ class MyBluetoothService(context: Context) {
             Log.d(TAG, "connect thread: write: $text")
             try {
                 mmOutStream?.write(bytes)
+                // Share the sent message back to UI activity
+                btHandler?.obtainMessage(MESSAGE_WRITE, -1, -1, bytes)
+                    ?.sendToTarget()
             } catch (e: IOException) {
                 Log.e(TAG, "connect thread: write: IOException", e)
             }
