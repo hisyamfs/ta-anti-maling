@@ -15,54 +15,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
-import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 import java.security.*
-import java.security.cert.Certificate
-import java.security.cert.CertificateFactory
-import java.security.spec.InvalidKeySpecException
 import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
-
-private val pubkey = """
-    -----BEGIN PUBLIC KEY-----
-    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5kgyBmqVI5d4nb+/hbce
-    rtu8OWBGXhqSqvwjdoR9YkkfWt+nRubjzEFehdVuJ5KtUKFwO8vhnWyPUHPqNha0
-    fw1aR53k/UtniyDG35/pwpSGfOttPyTDLqb+xvbggwkicI63eeQBzfXpI26qEhcD
-    jMa5om+asWNOEpdqm+2cAoHuIII179SfJPQBo72/11fAj+9TeM3unC8AHUQahkIn
-    fW2Pt3MZjb7Bff+5HCJZM/gj5Qxvd87eP63eiUBq8bbcnMn5PFJpdHVQbQ9x6Wb0
-    uZx3CXCmxXz3EI97KoIuLds/zU4vHCw1YUoHRyk08OpN6H6JyMD7PuXRnYjpLVMc
-    4QIDAQAB
-    -----END PUBLIC KEY-----""".trimIndent()
-
-private val privkey = """
-    -----BEGIN RSA PRIVATE KEY-----
-    MIIEpAIBAAKCAQEA5kgyBmqVI5d4nb+/hbcertu8OWBGXhqSqvwjdoR9YkkfWt+n
-    RubjzEFehdVuJ5KtUKFwO8vhnWyPUHPqNha0fw1aR53k/UtniyDG35/pwpSGfOtt
-    PyTDLqb+xvbggwkicI63eeQBzfXpI26qEhcDjMa5om+asWNOEpdqm+2cAoHuIII1
-    79SfJPQBo72/11fAj+9TeM3unC8AHUQahkInfW2Pt3MZjb7Bff+5HCJZM/gj5Qxv
-    d87eP63eiUBq8bbcnMn5PFJpdHVQbQ9x6Wb0uZx3CXCmxXz3EI97KoIuLds/zU4v
-    HCw1YUoHRyk08OpN6H6JyMD7PuXRnYjpLVMc4QIDAQABAoIBAQCUMXu381kcuXqO
-    kfovk+O0BYaAqfs+zfz6+h3cRHDoEkSSV4GvuCB6rsqkd/BWmSbdz7aJVLBRfa5Q
-    yPe9bSkk5jPmCK93bdIpj6NL//4QEULnGx6H1yGgYSluYyuiR/uY0c8zKs8aexlY
-    ivv5fkPzkWOfLBEx/MUeY8Dgra2LUleopkHhem7tXVsUrSZkD5R/amlTZpS2/dAH
-    91g0hqRoFWypiwqYdsajl+ord4y/QfOieLMf4BldAE2nnEYnXHk9vFgu8Bl2N4R/
-    D4T47ghLLrwsf5/Xr9AGL9BB/SXOxrCL0HxvBTCKP0VmAxrRNeS5/1jWkklj/G6m
-    et6vPEnRAoGBAPRRtoGLOwvRW5hODUwkxgFQ2R3etOlwDnf+sBA9/WRSNLRa7Pys
-    KNKQvDL7RPNHeNTnC+Ezim5CIFXHGDRohIiYBGyOIxZcAuJLRpH6/jAvaalC7iuZ
-    zuC9YDnTWuaaPGRivEzHV3wIuvG+PX12ZMXhF6MjUXuwxu40DhsOFLLVAoGBAPFK
-    rYJwXI7UdvUQkDU+GW/0ajHaE1aJWijfBg6XvkuWI6AxGF+XyPZ1Fmz44kC3WcXN
-    geDefDA/05oItWCMWWJ4TCOSTcsVk3bvmrTeTLFgLp6UhmA/nzSYhDnI2N6H1fO5
-    LnmfKOR+mbVr7XpgaRNp7D2P8nnOJcSNjmqJsU/dAoGAJeQWXfjt62NIxVI1lb2O
-    R932Dj/f5uROGiYRwDMc/VYSfnYrkvRQUHfJ+E4n32MSRlKe8QpBSeBPi34ZLueW
-    xmhtJzjUED+s4tOx2ioHCgoQZQPQVErCXvB/3/f7fRAmlZsKgQ3Zb48bDyrl9nNK
-    JbZHKDHuDTTZZVAFcAS7CRECgYA+olfv6CLeoKBQdQA6Eeigex2l2ynx6K2StnHo
-    D9PB4zNUPepJxijQcQxlNSXmDrIq+nGgYaBzFd5juab7bPM28GszQKMY+HzS/td1
-    486crI7tczh+e4VkLcMFDPHesfwDzCoYQAxpY8OaqG14utYLyA8e2+LhY3XCU8yI
-    Mz3nsQKBgQCjiVQzAplD9q4QyMn75oPH+hNwyx1Rx6g2uyMyH6xBnwiBRCrV+GYf
-    aNaJ1zBrOWKzkfhN3SIw5GwL7iXTD+gjb++iRjhglyUnt63bnrvU4H7stXyDfd/k
-    95cmcIqfnYQ9/NzpHCOVLePKdnF+WPYbhLdjTuCOrOGuQHl8i95g3g==
-    -----END RSA PRIVATE KEY-----""".trimIndent()
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
@@ -73,6 +30,54 @@ class ConnectActivity : AppCompatActivity() {
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
     private lateinit var encryptedMsg: String
+
+    private val pubkey = """
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6yN4qhtwMG0/O3yqULK
+    hmRd/P+/bqySvlQ9xRZy2Jw8WYLTI9ruX7ToEKwmX7nErvOWJEHj7T03i6aeTymr
+    mkX6TF9zyUu2WrETti+8QwlfeF58j2TFpqGtvJiuMVd78XuNdaWpvY0NIaUlDhBb
+    snFkzhTcAERQEqEIIQEi65HE0NPuR7Nm4ErtXHYqftiom4Vdnt7DLKJX8k2iJERW
+    PTi17HC8cfzHPcaN2D4SPmsogYlOkKaG45hJENjjGfghHIz3W1Xqj2yWjvQd/lIp
+    pBBeiYHvkG5IMU+93vP/Gv3OI8DdJIUUrHBuft3BvlCh0daj8+ezYtvTA2M8pG+5
+    kQIDAQAB
+    -----END PUBLIC KEY-----""".trimIndent()
+
+    private val privkey = """
+    -----BEGIN PRIVATE KEY-----
+    MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCnrI3iqG3AwbT8
+    7fKpQsqGZF38/79urJK+VD3FFnLYnDxZgtMj2u5ftOgQrCZfucSu85YkQePtPTeL
+    pp5PKauaRfpMX3PJS7ZasRO2L7xDCV94XnyPZMWmoa28mK4xV3vxe411pam9jQ0h
+    pSUOEFuycWTOFNwARFASoQghASLrkcTQ0+5Hs2bgSu1cdip+2KibhV2e3sMsolfy
+    TaIkRFY9OLXscLxx/Mc9xo3YPhI+ayiBiU6QpobjmEkQ2OMZ+CEcjPdbVeqPbJaO
+    9B3+UimkEF6Jge+QbkgxT73e8/8a/c4jwN0khRSscG5+3cG+UKHR1qPz57Ni29MD
+    Yzykb7mRAgMBAAECggEBAJbIdsOoQSKBT7fQZ1LNDIE0isz0U/s7166u5OlymY6v
+    WRoJqsPookqQzcwIc23MCdJmnNM4KbbzQRsll+GKkJXobgD2KZKQsoj2CsrgPIVw
+    TVlaZtswfQmvBSS/jI40pPHw8LImavFZgcCK2Tq/fSaIEGW+nmTjCbrm8v9zHSsG
+    8ui8Cd9eHE8XpFsCubAQgtQnFP7JXI1LA9aZ9aBioI91SHtO/QtNkNi7vRuInXX/
+    vf7F2kaNPIWnFC9MW9uzPFOKYUyTEOiA/4bFstMas/lLEQVnhGejea2j3Rz2PnHX
+    kPcQYwwpOY64Qa7QH+qWCUJI5DtBJjkABzFtoMb4XC0CgYEA2w+bJMyIfASLK+P6
+    JjyzPPU6NpFTE4t7wflJZ3sxv1YGZCR5I8xhntrHf3/KZiXlNydWYUtlE4Cx1j8/
+    oIRaVcyn6oxMMp5e3CDWxejNIs172j0SWllt7GrbiWPdp0p8SEU9LwHlee71yTp6
+    kA1WTBsG7Sh9HoaS7J72fE8FgQsCgYEAw/KvPkmivvsp1CDuW+UTYrl/bMDrhoai
+    R0YkGS+UpX9wCTYoaPbOS9outBpAEpjtsHryf/ZRh/IkXGc8G3fysocLY4p8w/Zy
+    8TgV+pKAJxT+3kX6i5IteLRG+XMi+i8l3siM/iZA8AWHrNVsIn+Bw/h4nE0jEWVL
+    eZileKnIiVMCgYBbi74ONtui2FNA2FkluaA+DU1ymHDbbiMeAQvIDxfPGig5mXR2
+    nWb+d/d/NOxkm9manvneVx+6csHfAzeX4TfPO2PBBTiivsRtwdt/gbaYoL7tiTAu
+    SclCT7XHSNDMpLgji6vyBRzdRBu7KJEnuisiSvkuCwmexCaKdDQV5wAp2QKBgEq1
+    TaFm+9jq9AC/6YE57tE2PmIdj+8Dh/26vWqo3HjZBMNOVcvnRbJf5myekY1Fp2Ih
+    DjJBnMZDSR+98IncirkMiggStg0U+rADnUWi859y/tWKQsNSIWoi+eiDwHM45Kxz
+    NGZ1+U5KHXeFC6x/ht9L7dhSBKvOPh+HVpeRzDanAoGALdbAnJoq2qAir8e7xiH5
+    YNObTBIHs0iVzMnTVoMuXKwbgpAecZQS5xl96HNnMmp+E/XhpCX4AXi9B9tYBeDn
+    ICW0FnTDHiTZhHc2L9XKgtPGlC7XXtOzLfhMm2fRfkbTVeBYSFxNHQNnny+CVNbz
+    ECXV4JH+wpBYWfW6Ev2qsfE=
+    -----END PRIVATE KEY-----""".trimIndent()
+
+    private val privkeystring = privkey.replace("\n", "")
+        .replace("-----BEGIN PRIVATE KEY-----", "")
+        .replace("-----END PRIVATE KEY-----", "")
+    private val pubkeystring = pubkey.replace("\n", "")
+        .replace("-----BEGIN PUBLIC KEY-----", "")
+        .replace("-----END PUBLIC KEY-----", "")
 
     companion object {
         var message: String = "Default"
@@ -95,6 +100,17 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this)
+        myRSAKeyPair = if (USE_DEF_KEY) {
+            getDefaultKeyPair()
+        } else {
+            if (hasMarshmallow()) {
+                createAsymmetricKeyPair()
+                getAsymmetricKeyPair()!!
+            } else {
+                createAsymmetricKeyPair()
+            }
+        }
+
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -102,11 +118,24 @@ class ConnectActivity : AppCompatActivity() {
             disconnectButton.setOnClickListener { disconnectFromDevice() }
             encryptButton.setOnClickListener { encryptMyMessage() }
             decryptButton.setOnClickListener { decryptMyMessage() }
+            resetKeyButton.setOnClickListener { resetKeys() }
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
+    }
 
-        if (USE_DEF_KEY) setDefaultKeyPair()
+    private fun resetKeys() {
+        removeKeyStore()
+        myRSAKeyPair = if (USE_DEF_KEY) {
+            getDefaultKeyPair()
+        } else {
+            if (hasMarshmallow()) {
+                createAsymmetricKeyPair()
+                getAsymmetricKeyPair()!!
+            } else {
+                createAsymmetricKeyPair()
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -123,21 +152,18 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun encryptMyMessage() {
 //        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        myRSAKeyPair = if (hasMarshmallow()) {
-            createAsymmetricKeyPair()
-            getAsymmetricKeyPair()!!
-        } else {
-            createAsymmetricKeyPair()
-        }
-
         val toEncrypt = binding.userInput.text.toString()
-        encryptedMsg = encrypt(toEncrypt, myRSAKeyPair.public)
+        val encryptedBytes = encrypt(toEncrypt, myRSAKeyPair.public)
+        encryptedMsg = Base64.encodeToString(encryptedBytes, Base64.DEFAULT)
+        myBluetoothService.write(encryptedBytes)
+//        myBluetoothService.write(encryptedMsg.toByteArray(Charset.defaultCharset()))
         val chatUpdate = "${binding.chatField.text} \nEncrypted: $encryptedMsg"
         binding.chatField.text = chatUpdate
+        Log.d(lt, "ConnectActivity: encrypted string: $encryptedMsg")
     }
 
     private fun disconnectFromDevice() {
-        Toast.makeText(this, "Disconnecting.....", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "ConnectActivity: Disconnecting.....", Toast.LENGTH_SHORT).show()
         myBluetoothService.stop()
     }
 
@@ -146,7 +172,7 @@ class ConnectActivity : AppCompatActivity() {
         // TODO("Ubah sendMessage agar memberi sinyal apakah pesan terkirim atau tidak")
         // TODO("Ubah myBluetoothService agar dapat menyalurkan pesan yang diterima ke ConnectActivity")
         message = binding.userInput.text.toString()
-        val bytes = message.toByteArray(Charset.defaultCharset())
+        val bytes = "$message\n".toByteArray(Charset.defaultCharset())
         myBluetoothService.write(bytes)
         val chatUpdate = "${binding.chatField.text} \nYou: $message"
         binding.chatField.text = chatUpdate
@@ -156,15 +182,14 @@ class ConnectActivity : AppCompatActivity() {
         // TODO("Ubah myBluetoothService agar mengecek koneksi berhasil")
         // TODO("Ubah connectToDevice agar memberi pesan jika koneksi berhasil")
         Toast.makeText(this, "Connecting....", Toast.LENGTH_SHORT).show()
-        Log.d(tag, "Initializing connection to device.")
+        Log.d(tag, "ConnectActivity: Initializing connection to device.")
         myBluetoothService.startClient(btDevice, uuid)
     }
 
-    private fun encrypt(data: String, publicKey: Key?): String {
+    private fun encrypt(data: String, publicKey: Key?): ByteArray {
         val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.ENCRYPT_MODE, publicKey)
-        val bytes = cipher.doFinal(data.toByteArray())
-        return Base64.encodeToString(bytes, Base64.DEFAULT)
+        return cipher.doFinal(data.toByteArray())
     }
 
     private fun decrypt(data: String, privateKey: Key?): String {
@@ -219,44 +244,23 @@ class ConnectActivity : AppCompatActivity() {
         }
     }
 
-    private fun setDefaultKeyPair() {
-        val keyStore: KeyStore = createKeyStore()
+    private fun getDefaultKeyPair(): KeyPair {
+        val keyFactory = KeyFactory.getInstance("RSA")
+        val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(privkeystring, Base64.DEFAULT))
+        val pubKeySpec = X509EncodedKeySpec(Base64.decode(pubkeystring, Base64.DEFAULT))
 
-        Log.i(lt, "ConnectActivity: accessing default keypair.")
-        val privateKey = keyStore.getKey(KEY_ALIAS_DEF, null) as PrivateKey?
-        val publicKey = keyStore.getCertificate(KEY_ALIAS_DEF)?.publicKey
+        val privateKey: PrivateKey = keyFactory.generatePrivate(privKeySpec)
+        val publicKey: PublicKey = keyFactory.generatePublic(pubKeySpec)
 
-        if (privateKey == null && publicKey == null) {
-            Log.i(lt, "ConnectActivity: no default keypair found. generating default keypair.")
-            val privkeystring = privkey.replace("\n", "")
-                .replace("-----BEGIN RSA PRIVATE KEY-----", "")
-                .replace("-----END RSA PRIVATE KEY-----", "")
-            val pubkeystring = pubkey.replace("\n", "")
-                .replace("-----BEGIN PUBLIC KEY-----", "")
-                .replace("-----END PUBLIC KEY-----", "")
-
-            try {
-                val pk: PrivateKey = KeyFactory.getInstance("RSA").generatePrivate(
-                    PKCS8EncodedKeySpec(Base64.decode(privkeystring, Base64.DEFAULT))
-                )
-                val cert: Certificate = CertificateFactory.getInstance("X.509").generateCertificate(
-                    ByteArrayInputStream(Base64.decode(pubkeystring, Base64.DEFAULT))
-                )
-
-                Log.i(lt, "ConnectActivity: loading default keypair.")
-                val ks = KeyStore.getInstance("AndroidKeyStore")
-                val certArray: Array<Certificate> = arrayOf(cert)
-                ks.load(null)
-                ks.setKeyEntry(KEY_ALIAS_DEF, pk, null, certArray)
-            } catch (e: KeyStoreException) {
-                Log.e(lt, "ConnectActivity: error while loading keypair", e)
-            } catch (e2: InvalidKeySpecException) {
-                Log.e(lt, "ConnectActivity: invalid key spec", e2)
-            }
-        }
+        return KeyPair(publicKey, privateKey)
     }
 
-    private fun removeKeyStore() = createKeyStore().deleteEntry(KEY_ALIAS)
+    private fun removeKeyStore() {
+        val ks = createKeyStore()
+        Log.i(lt, "ConnectActivity: removing key pairs.")
+        ks.deleteEntry(KEY_ALIAS)
+        ks.deleteEntry(KEY_ALIAS_DEF)
+    }
 
     private fun createKeyStore(): KeyStore {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
