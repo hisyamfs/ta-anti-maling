@@ -222,7 +222,7 @@ class ConnectActivity : AppCompatActivity() {
             val hashString = Base64.encodeToString(hashBytes, Base64.DEFAULT)
             val signatureBytes = encrypt(hashString, myRSAKeyPair.private)
             val signature = Base64.encodeToString(signatureBytes, Base64.DEFAULT)
-            val messageToSend = "$to_send SHA-256:$signature"
+            val messageToSend = "$to_send;$signature;"
             bytes = messageToSend.toByteArray(Charset.defaultCharset())
         } else {
             bytes = to_send.toByteArray(Charset.defaultCharset())
