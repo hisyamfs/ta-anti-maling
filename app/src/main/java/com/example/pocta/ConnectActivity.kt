@@ -25,7 +25,9 @@ import java.nio.charset.Charset
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
+import javax.crypto.IllegalBlockSizeException
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
@@ -156,7 +158,11 @@ class ConnectActivity : AppCompatActivity() {
                 MESSAGE_WRITE -> {
                     // update the text
                     val writeBuf = msg.obj as ByteArray
-                    val writeMessage = String(writeBuf)
+                    val writeMessage = if (IS_OUTPUT_ENCRYPTED) {
+                        Base64.encodeToString(writeBuf, Base64.DEFAULT)
+                    } else {
+                        String(writeBuf)
+                    }
                     val chatUpdate = "${binding.chatField.text} \nYou: $writeMessage"
                     binding.chatField.text = chatUpdate
                 }
@@ -216,18 +222,14 @@ class ConnectActivity : AppCompatActivity() {
         val to_send = binding.userInput.text.toString()
         val bytes: ByteArray
         if (IS_OUTPUT_ENCRYPTED) {
-            // Send message + signature
-            val md = MessageDigest.getInstance("SHA-256")
-            val hashBytes = md.digest(to_send.toByteArray(Charset.defaultCharset()))
-            val hashString = Base64.encodeToString(hashBytes, Base64.DEFAULT)
-            val signatureBytes = encrypt(hashString, myRSAKeyPair.private)
-            val signature = Base64.encodeToString(signatureBytes, Base64.DEFAULT)
-            val messageToSend = "$to_send;$signature;"
-            bytes = messageToSend.toByteArray(Charset.defaultCharset())
+            bytes = encrypt(to_send, myRSAKeyPair.public)
         } else {
             bytes = to_send.toByteArray(Charset.defaultCharset())
         }
         myBluetoothService.write(bytes)
+
+        val chatUpdate = "${binding.chatField.text} \nYou: Original: $to_send"
+        binding.chatField.text = chatUpdate
     }
 
     private fun connectToDevice() {
@@ -248,9 +250,17 @@ class ConnectActivity : AppCompatActivity() {
     private fun decrypt(data: String, privateKey: Key?): String {
         val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.DECRYPT_MODE, privateKey)
-        val encryptedData = Base64.decode(data, Base64.DEFAULT)
-        val decodedData = cipher.doFinal(encryptedData)
-        return String(decodedData)
+        val cleaned = data
+            .replace("\\s".toRegex(), "")
+        return try {
+            val encryptedData = Base64.decode(cleaned, Base64.DEFAULT)
+            val decodedData = cipher.doFinal(encryptedData)
+            String(decodedData)
+        } catch (e: BadPaddingException) {
+            "decrypt(): Padding Error!"
+        } catch (e: IllegalBlockSizeException) {
+            "decrypt(): Block Size Error!"
+        }
     }
 
     private fun decryptBytes(data: ByteArray, privateKey: Key?): String {
