@@ -20,7 +20,6 @@ import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_WRITE
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
-import kotlinx.android.synthetic.main.activity_connect.*
 import java.nio.charset.Charset
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
@@ -33,7 +32,8 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
     private lateinit var myAddress: String
     private lateinit var myBluetoothService: MyBluetoothService
-    private lateinit var myRSAKeyPair: KeyPair
+    private lateinit var hpRSAKeyPair: KeyPair
+    private lateinit var dRSAPublicKey: PublicKey
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
@@ -41,7 +41,7 @@ class ConnectActivity : AppCompatActivity() {
     private var IS_OUTPUT_ENCRYPTED = false
     private var IS_INPUT_ENCRYPTED = true
 
-    private val pubkey = """
+    private val hpPubkey = """
     -----BEGIN PUBLIC KEY-----
     MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6yN4qhtwMG0/O3yqULK
     hmRd/P+/bqySvlQ9xRZy2Jw8WYLTI9ruX7ToEKwmX7nErvOWJEHj7T03i6aeTymr
@@ -52,7 +52,7 @@ class ConnectActivity : AppCompatActivity() {
     kQIDAQAB
     -----END PUBLIC KEY-----""".trimIndent()
 
-    private val privkey = """
+    private val hpPrivkey = """
     -----BEGIN PRIVATE KEY-----
     MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCnrI3iqG3AwbT8
     7fKpQsqGZF38/79urJK+VD3FFnLYnDxZgtMj2u5ftOgQrCZfucSu85YkQePtPTeL
@@ -82,10 +82,28 @@ class ConnectActivity : AppCompatActivity() {
     ECXV4JH+wpBYWfW6Ev2qsfE=
     -----END PRIVATE KEY-----""".trimIndent()
 
-    private val privkeystring = privkey.replace("\n", "")
+    private val dPubKey = """
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuRkf411wgdkPdUd98but
+    GW3kLj0GMEh0IR6Y4j9hcAuvupwReW/9cBnlkW0JUGVEIJc09/Gek0tKmTQJnXmG
+    bK59lFQ8w2IlkdOC+nas+KDh0oIqv3oOXqsFobARQPf51WMFC2fNIuHF9A7kA4/h
+    nKMphwbqlIlzuh6+W1WfXR7J5LFOA1354JRzAPNnWxY8cn21MaP4pO7H17fEmhIT
+    xYD6VDuD3vR75VkDIiZj5Kj24fD8Q63HHCYFHMuUXkVlWLjCVncr5Wk4YPj2dCO/
+    4BuVy4Xtb6q0mk1TWj7JaJDSktUQlDEPbRRBsNWenbCW8ZMhLEHyX4VHpC+spVLt
+    9QIDAQAB
+    -----END PUBLIC KEY-----
+    """.trimIndent()
+
+    private val hpPrivKeyString = hpPrivkey
+        .replace("\n", "")
         .replace("-----BEGIN PRIVATE KEY-----", "")
         .replace("-----END PRIVATE KEY-----", "")
-    private val pubkeystring = pubkey.replace("\n", "")
+    private val hpPubKeyString = hpPubkey
+        .replace("\n", "")
+        .replace("-----BEGIN PUBLIC KEY-----", "")
+        .replace("-----END PUBLIC KEY-----", "")
+    private val dPubKeyString = dPubKey
+        .replace("\n", "")
         .replace("-----BEGIN PUBLIC KEY-----", "")
         .replace("-----END PUBLIC KEY-----", "")
 
@@ -109,7 +127,7 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this, myHandler)
-        myRSAKeyPair = if (USE_DEF_KEY) {
+        hpRSAKeyPair = if (USE_DEF_KEY) {
             getDefaultKeyPair()
         } else {
             if (hasMarshmallow()) {
@@ -119,6 +137,7 @@ class ConnectActivity : AppCompatActivity() {
                 createAsymmetricKeyPair()
             }
         }
+        dRSAPublicKey = getDevicePublicKey()
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -134,7 +153,7 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        if (::myRSAKeyPair.isInitialized) removeKeyStore()
+        if (::hpRSAKeyPair.isInitialized) removeKeyStore()
         super.onDestroy()
     }
 
@@ -147,7 +166,7 @@ class ConnectActivity : AppCompatActivity() {
                     val readBuf = msg.obj as ByteArray
                     val readMessage = String(readBuf, 0, msg.arg1)
                     val finalMessage = if (IS_INPUT_ENCRYPTED) {
-                        decrypt(readMessage, myRSAKeyPair.private)
+                        decrypt(readMessage, hpRSAKeyPair.private)
                     } else {
                         readMessage
                     }
@@ -183,7 +202,7 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun resetKeys() {
         removeKeyStore()
-        myRSAKeyPair = if (USE_DEF_KEY) {
+        hpRSAKeyPair = if (USE_DEF_KEY) {
             getDefaultKeyPair()
         } else {
             if (hasMarshmallow()) {
@@ -197,7 +216,7 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun decryptMyMessage() {
 //        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val decryptedMsg= decrypt(encryptedMsg, myRSAKeyPair.private)
+        val decryptedMsg= decrypt(encryptedMsg, hpRSAKeyPair.private)
         val chatUpdate = "${binding.chatField.text} \nDecrypted: $decryptedMsg"
         binding.chatField.text = chatUpdate
     }
@@ -222,7 +241,7 @@ class ConnectActivity : AppCompatActivity() {
         val to_send = binding.userInput.text.toString()
         val bytes: ByteArray
         if (IS_OUTPUT_ENCRYPTED) {
-            bytes = encrypt(to_send, myRSAKeyPair.public)
+            bytes = encrypt(to_send, dRSAPublicKey)
         } else {
             bytes = to_send.toByteArray(Charset.defaultCharset())
         }
@@ -242,12 +261,14 @@ class ConnectActivity : AppCompatActivity() {
 
     // Encryption/decryption function
     private fun encrypt(data: String, publicKey: Key?): ByteArray {
+        Log.i(lt, "ConnectActivity: encrypt() called.")
         val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.ENCRYPT_MODE, publicKey)
         return cipher.doFinal(data.toByteArray())
     }
 
     private fun decrypt(data: String, privateKey: Key?): String {
+        Log.i(lt, "ConnectActivity: decrypt() called.")
         val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
         cipher.init(Cipher.DECRYPT_MODE, privateKey)
         val cleaned = data
@@ -257,9 +278,14 @@ class ConnectActivity : AppCompatActivity() {
             val decodedData = cipher.doFinal(encryptedData)
             String(decodedData)
         } catch (e: BadPaddingException) {
+            Log.e(lt, "decrypt(): Padding error", e)
             "decrypt(): Padding Error!"
         } catch (e: IllegalBlockSizeException) {
+            Log.e(lt, "decrypt(): block size error", e)
             "decrypt(): Block Size Error!"
+        } catch (e: IllegalArgumentException) {
+            Log.e(lt, "decrypt(): bad base64 error", e)
+            "decrypt(): Bad base 64!"
         }
     }
 
@@ -316,13 +342,19 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun getDefaultKeyPair(): KeyPair {
         val keyFactory = KeyFactory.getInstance("RSA")
-        val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(privkeystring, Base64.DEFAULT))
-        val pubKeySpec = X509EncodedKeySpec(Base64.decode(pubkeystring, Base64.DEFAULT))
+        val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(hpPrivKeyString, Base64.DEFAULT))
+        val pubKeySpec = X509EncodedKeySpec(Base64.decode(hpPubKeyString, Base64.DEFAULT))
 
         val privateKey: PrivateKey = keyFactory.generatePrivate(privKeySpec)
         val publicKey: PublicKey = keyFactory.generatePublic(pubKeySpec)
 
         return KeyPair(publicKey, privateKey)
+    }
+
+    private fun getDevicePublicKey(): PublicKey {
+        val keyFactory = KeyFactory.getInstance("RSA")
+        val pubKeySpec = X509EncodedKeySpec(Base64.decode(dPubKeyString, Base64.DEFAULT))
+        return keyFactory.generatePublic(pubKeySpec)
     }
 
     private fun removeKeyStore() {

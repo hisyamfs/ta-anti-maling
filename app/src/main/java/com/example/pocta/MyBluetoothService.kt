@@ -217,7 +217,7 @@ class MyBluetoothService(context: Context, handler: Handler) {
 
         override fun run() {
             var numBytes: Int
-            val mmBuffer = ByteArray(1024)
+            val mmBuffer = ByteArray(2048)
 
             while (true) {
                 try {
