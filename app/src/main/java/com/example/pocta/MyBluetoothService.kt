@@ -8,12 +8,18 @@ import android.content.Context
 import android.content.res.Resources
 import android.os.Bundle
 import android.os.Handler
+import android.util.Base64
 import android.util.Log
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.Charset
+import java.security.PrivateKey
+import java.security.PublicKey
 import java.util.*
+import javax.crypto.BadPaddingException
+import javax.crypto.Cipher
+import javax.crypto.IllegalBlockSizeException
 
 class MyBluetoothService(context: Context, handler: Handler) {
     private var btAdapter: BluetoothAdapter? = null
@@ -25,6 +31,10 @@ class MyBluetoothService(context: Context, handler: Handler) {
     private var btNewState : Int = 0
     private var btContext: Context? = null
     private var btHandler: Handler? = null
+    private var btDecryptionKey: PrivateKey? = null
+    private var btEncryptionKey: PublicKey? = null
+    var useOutputEncryption = false
+    var useInputDecryption = false
     private val TAG = "MY_BLUETOOTH_SERVICE"
 
     companion object {
@@ -97,6 +107,50 @@ class MyBluetoothService(context: Context, handler: Handler) {
     fun write(bytes: ByteArray) {
         Log.d(TAG, "write: write called.")
         btConnectedThread?.write(bytes)
+    }
+
+    fun setEncryptionDecryptionKey(publicKey: PublicKey, privateKey: PrivateKey) {
+        stop()
+        btEncryptionKey = publicKey
+        btDecryptionKey = privateKey
+    }
+
+    fun btEncrypt(bytes: ByteArray) : ByteArray {
+        if (btEncryptionKey != null) {
+            return try {
+                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                cipher.init(Cipher.ENCRYPT_MODE, btEncryptionKey)
+                cipher.doFinal(bytes)
+            } catch (e: BadPaddingException) {
+                Log.e(TAG, "decrypt(): Padding error", e)
+                "decrypt(): Padding Error!".toByteArray(Charset.defaultCharset())
+            } catch (e: IllegalBlockSizeException) {
+                Log.e(TAG, "decrypt(): block size error", e)
+                "decrypt(): Block Size Error!".toByteArray(Charset.defaultCharset())
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "decrypt(): bad base64 error", e)
+                "decrypt(): Bad base 64!".toByteArray(Charset.defaultCharset())
+            }
+        } else return "Encryption Key not Found".toByteArray()
+    }
+
+    fun btDecrypt(bytes: ByteArray) : ByteArray {
+        if (btDecryptionKey != null) {
+            return try {
+                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                cipher.init(Cipher.DECRYPT_MODE, btDecryptionKey)
+                cipher.doFinal(bytes)
+            } catch (e: BadPaddingException) {
+                Log.e(TAG, "decrypt(): Padding error", e)
+                "decrypt(): Padding Error!".toByteArray(Charset.defaultCharset())
+            } catch (e: IllegalBlockSizeException) {
+                Log.e(TAG, "decrypt(): block size error", e)
+                "decrypt(): Block Size Error!".toByteArray(Charset.defaultCharset())
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "decrypt(): bad base64 error", e)
+                "decrypt(): Bad base 64!".toByteArray(Charset.defaultCharset())
+            }
+        } else return "Decryption Key not Found".toByteArray()
     }
 
     private inner class AcceptThread : Thread() {
@@ -215,17 +269,36 @@ class MyBluetoothService(context: Context, handler: Handler) {
             btState = STATE_CONNECTED
         }
 
+        // TODO("Ubah fungsi btDecrypt() agar hanya menerima sebagian mmBuffer saja, yaitu sebanyak byte yang diterima")
         override fun run() {
             var numBytes: Int
-            val mmBuffer = ByteArray(2048)
+            val mmBuffer = ByteArray(256)
 
             while (true) {
                 try {
-                    numBytes = mmInStream?.read(mmBuffer) ?: 0
-                    btHandler?.obtainMessage(MESSAGE_READ, numBytes, -1, mmBuffer)
-                        ?.sendToTarget()
-                    val incomingMessage = String(mmBuffer, 0, numBytes)
-                    Log.d(TAG, "connected thread: input stream: $incomingMessage")
+                    if (mmInStream != null) {
+                        numBytes = mmInStream.read(mmBuffer)
+                        Log.d(TAG, "connected thread: receiving $numBytes bytes")
+                        var hexString = ""
+                        for (i in mmBuffer.indices) {
+                            val hex = if (i % 16 == 0) {
+                                String.format("\n%02X ", mmBuffer[i])
+                            } else {
+                                String.format("%02X ", mmBuffer[i])
+                            }
+                            hexString = "$hexString $hex"
+                        }
+                        Log.d(TAG, "connected thread: input stream: $hexString")
+
+                        val inBytes: ByteArray =
+                            if (useInputDecryption) btDecrypt(mmBuffer) else mmBuffer
+                        numBytes = inBytes.size
+
+                        btHandler?.obtainMessage(MESSAGE_READ, numBytes, -1, inBytes)
+                            ?.sendToTarget()
+                    } else {
+                        Log.d(TAG, "mmInStream is null")
+                    }
                 } catch (e: IOException) {
                     Log.e(TAG, "connected thread: error reading in stream", e)
                     break
@@ -234,12 +307,15 @@ class MyBluetoothService(context: Context, handler: Handler) {
         }
 
         fun write(bytes: ByteArray) {
-            val text = String(bytes)
+            val sentBytes: ByteArray = if (useOutputEncryption) btEncrypt(bytes) else bytes
+            // encode in base64 for UI activity
+            val uiBytes: ByteArray = if (useOutputEncryption) Base64.encode(sentBytes, Base64.DEFAULT) else sentBytes
+            val text = String(sentBytes)
             Log.d(TAG, "connect thread: write: $text")
             try {
-                mmOutStream?.write(bytes)
+                mmOutStream?.write(sentBytes)
                 // Share the sent message back to UI activity
-                btHandler?.obtainMessage(MESSAGE_WRITE, -1, -1, bytes)
+                btHandler?.obtainMessage(MESSAGE_WRITE, -1, -1, uiBytes)
                     ?.sendToTarget()
             } catch (e: IOException) {
                 Log.e(TAG, "connect thread: write: IOException", e)

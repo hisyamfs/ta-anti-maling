@@ -138,6 +138,7 @@ class ConnectActivity : AppCompatActivity() {
             }
         }
         dRSAPublicKey = getDevicePublicKey()
+        myBluetoothService.setEncryptionDecryptionKey(dRSAPublicKey, hpRSAKeyPair.private)
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -145,8 +146,6 @@ class ConnectActivity : AppCompatActivity() {
             disconnectButton.setOnClickListener { disconnectFromDevice() }
             toggleEncryptionButton.setOnClickListener { toggleEncryption() }
             toggleDecryptionButton.setOnClickListener { toggleDecryption() }
-//            decryptButton.setOnClickListener { decryptMyMessage() }
-//            resetKeyButton.setOnClickListener { resetKeys() }
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
@@ -164,24 +163,14 @@ class ConnectActivity : AppCompatActivity() {
                 MESSAGE_READ -> {
                     // update the text
                     val readBuf = msg.obj as ByteArray
-                    val readMessage = String(readBuf, 0, msg.arg1)
-                    val finalMessage = if (IS_INPUT_ENCRYPTED) {
-                        decrypt(readMessage, hpRSAKeyPair.private)
-                    } else {
-                        readMessage
-                    }
-
+                    val finalMessage = String(readBuf, 0, msg.arg1)
                     val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $finalMessage"
                     binding.chatField.text = chatUpdate
                 }
                 MESSAGE_WRITE -> {
                     // update the text
                     val writeBuf = msg.obj as ByteArray
-                    val writeMessage = if (IS_OUTPUT_ENCRYPTED) {
-                        Base64.encodeToString(writeBuf, Base64.DEFAULT)
-                    } else {
-                        String(writeBuf)
-                    }
+                    val writeMessage = String(writeBuf)
                     val chatUpdate = "${binding.chatField.text} \nYou: $writeMessage"
                     binding.chatField.text = chatUpdate
                 }
@@ -190,14 +179,12 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     private fun toggleDecryption() {
-        if (IS_INPUT_ENCRYPTED) {
-            Toast.makeText(this, "Disabling RSA decryption...", Toast.LENGTH_SHORT).show()
-            binding.toggleDecryptionButton.text = "Decryption Off"
+        myBluetoothService.useInputDecryption = !myBluetoothService.useInputDecryption
+        if (myBluetoothService.useInputDecryption) {
+            Toast.makeText(this, "Input Decryption Enabled.", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "Enabling RSA decryption......", Toast.LENGTH_SHORT).show()
-            binding.toggleDecryptionButton.text = "Decryption On"
+            Toast.makeText(this, "Input Decryption Disabled.", Toast.LENGTH_SHORT).show()
         }
-        IS_INPUT_ENCRYPTED = !IS_INPUT_ENCRYPTED
     }
 
     private fun resetKeys() {
@@ -222,14 +209,12 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     private fun toggleEncryption() {
-        if (IS_OUTPUT_ENCRYPTED) {
-            Toast.makeText(this, "Disabling RSA encryption...", Toast.LENGTH_SHORT).show()
-            binding.toggleEncryptionButton.text = "Signature Off"
+        myBluetoothService.useOutputEncryption = !myBluetoothService.useOutputEncryption
+        if (myBluetoothService.useOutputEncryption) {
+            Toast.makeText(this, "Output Encryption Enabled.", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "Enabling RSA encryption......", Toast.LENGTH_SHORT).show()
-            binding.toggleEncryptionButton.text = "Signature On"
+            Toast.makeText(this, "Output Encryption Disabled.", Toast.LENGTH_SHORT).show()
         }
-        IS_OUTPUT_ENCRYPTED = !IS_OUTPUT_ENCRYPTED
     }
 
     private fun disconnectFromDevice() {
