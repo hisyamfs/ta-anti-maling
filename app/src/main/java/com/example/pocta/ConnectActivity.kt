@@ -34,6 +34,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var myBluetoothService: MyBluetoothService
     private lateinit var hpRSAKeyPair: KeyPair
     private lateinit var dRSAPublicKey: PublicKey
+    private lateinit var incomingMessage: String
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
@@ -146,6 +147,7 @@ class ConnectActivity : AppCompatActivity() {
             disconnectButton.setOnClickListener { disconnectFromDevice() }
             toggleEncryptionButton.setOnClickListener { toggleEncryption() }
             toggleDecryptionButton.setOnClickListener { toggleDecryption() }
+            hashReplyButton.setOnClickListener { hashReply() }
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
@@ -163,8 +165,8 @@ class ConnectActivity : AppCompatActivity() {
                 MESSAGE_READ -> {
                     // update the text
                     val readBuf = msg.obj as ByteArray
-                    val finalMessage = String(readBuf, 0, msg.arg1)
-                    val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $finalMessage"
+                    incomingMessage = String(readBuf, 0, msg.arg1)
+                    val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
                     binding.chatField.text = chatUpdate
                 }
                 MESSAGE_WRITE -> {
@@ -182,8 +184,10 @@ class ConnectActivity : AppCompatActivity() {
         myBluetoothService.useInputDecryption = !myBluetoothService.useInputDecryption
         if (myBluetoothService.useInputDecryption) {
             Toast.makeText(this, "Input Decryption Enabled.", Toast.LENGTH_SHORT).show()
+            binding.toggleDecryptionButton.text = "Decryption On"
         } else {
             Toast.makeText(this, "Input Decryption Disabled.", Toast.LENGTH_SHORT).show()
+            binding.toggleDecryptionButton.text = "Decryption Off"
         }
     }
 
@@ -212,9 +216,37 @@ class ConnectActivity : AppCompatActivity() {
         myBluetoothService.useOutputEncryption = !myBluetoothService.useOutputEncryption
         if (myBluetoothService.useOutputEncryption) {
             Toast.makeText(this, "Output Encryption Enabled.", Toast.LENGTH_SHORT).show()
+            binding.toggleEncryptionButton.text = "Encryption On"
         } else {
             Toast.makeText(this, "Output Encryption Disabled.", Toast.LENGTH_SHORT).show()
+            binding.toggleEncryptionButton.text = "Encryption Off"
         }
+    }
+
+    private fun hashReply() {
+        Log.d(lt, "Last message: $incomingMessage")
+        val bytes: ByteArray = //try {
+//            Base64.decode(incomingMessage, Base64.DEFAULT)
+//        } catch (e: IllegalArgumentException) {
+//            Log.d(lt, "hashReply(): Base64 decoding fail, using raw string.")
+            incomingMessage.toByteArray()
+//        }
+        val md = MessageDigest.getInstance("SHA-256")
+        val digest = md.digest(bytes)
+        var hexString = ""
+        for (i in digest.indices) {
+            val hex = if (i % 16 == 0) {
+                String.format("\n%02X ", digest[i])
+            } else {
+                String.format("%02X ", digest[i])
+            }
+            hexString = "$hexString $hex"
+        }
+        Log.d(lt, "hash reply: $hexString")
+        val digestString = Base64.encodeToString(digest, Base64.DEFAULT)
+        myBluetoothService.write(digest)
+        val chatUpdate = "${binding.chatField.text} \nHash of last message: $digestString"
+        binding.chatField.text = chatUpdate
     }
 
     private fun disconnectFromDevice() {
@@ -223,16 +255,11 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     private fun sendMessage() {
-        val to_send = binding.userInput.text.toString()
-        val bytes: ByteArray
-        if (IS_OUTPUT_ENCRYPTED) {
-            bytes = encrypt(to_send, dRSAPublicKey)
-        } else {
-            bytes = to_send.toByteArray(Charset.defaultCharset())
-        }
+        val toSend = binding.userInput.text.toString()
+        val bytes: ByteArray = toSend.toByteArray(Charset.defaultCharset())
         myBluetoothService.write(bytes)
 
-        val chatUpdate = "${binding.chatField.text} \nYou: Original: $to_send"
+        val chatUpdate = "${binding.chatField.text} \nYou: Original: $toSend"
         binding.chatField.text = chatUpdate
     }
 

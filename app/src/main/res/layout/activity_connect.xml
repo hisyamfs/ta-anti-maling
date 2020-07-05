@@ -56,6 +56,14 @@
             android:gravity="center_horizontal">
 
             <Button
+                android:id="@+id/hashReplyButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/hash_reply"
+                android:layout_margin="8dp"
+                android:layout_gravity="center_horizontal" />
+
+            <Button
                 android:id="@+id/toggleEncryptionButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -82,9 +90,9 @@
                 android:visibility="gone"/>
 
             <Button
+                android:id="@+id/toggleDecryptionButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/toggleDecryptionButton"
                 android:layout_margin="8dp"
                 android:layout_gravity="center_horizontal"
                 android:text="@string/toggle_decryption"/>

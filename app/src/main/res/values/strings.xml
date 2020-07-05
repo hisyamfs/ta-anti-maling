@@ -21,4 +21,5 @@
     <string name="reset_key">Reset Key</string>
     <string name="toggle_decryption">Decryption On</string>
     <string name="sign">Sign</string>
+    <string name="hash_reply">Hash Reply</string>
 </resources>
