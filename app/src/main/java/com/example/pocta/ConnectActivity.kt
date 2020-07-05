@@ -34,7 +34,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var myBluetoothService: MyBluetoothService
     private lateinit var hpRSAKeyPair: KeyPair
     private lateinit var dRSAPublicKey: PublicKey
-    private lateinit var incomingMessage: String
+    private lateinit var incomingBytes: ByteArray
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
@@ -164,8 +164,8 @@ class ConnectActivity : AppCompatActivity() {
             when (msg.what) {
                 MESSAGE_READ -> {
                     // update the text
-                    val readBuf = msg.obj as ByteArray
-                    incomingMessage = String(readBuf, 0, msg.arg1)
+                    incomingBytes = msg.obj as ByteArray
+                    val incomingMessage = String(incomingBytes, 0, msg.arg1)
                     val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
                     binding.chatField.text = chatUpdate
                 }
@@ -224,15 +224,9 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     private fun hashReply() {
-        Log.d(lt, "Last message: $incomingMessage")
-        val bytes: ByteArray = //try {
-//            Base64.decode(incomingMessage, Base64.DEFAULT)
-//        } catch (e: IllegalArgumentException) {
-//            Log.d(lt, "hashReply(): Base64 decoding fail, using raw string.")
-            incomingMessage.toByteArray()
-//        }
+        Log.d(lt, "Last message: $incomingBytes")
         val md = MessageDigest.getInstance("SHA-256")
-        val digest = md.digest(bytes)
+        val digest = md.digest(incomingBytes)
         var hexString = ""
         for (i in digest.indices) {
             val hex = if (i % 16 == 0) {
