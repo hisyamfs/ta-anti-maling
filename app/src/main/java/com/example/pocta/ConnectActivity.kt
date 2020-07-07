@@ -24,9 +24,6 @@ import java.nio.charset.Charset
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
-import javax.crypto.BadPaddingException
-import javax.crypto.Cipher
-import javax.crypto.IllegalBlockSizeException
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
@@ -38,11 +35,11 @@ class ConnectActivity : AppCompatActivity() {
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
-    private lateinit var encryptedMsg: String
-    private var IS_OUTPUT_ENCRYPTED = false
-    private var IS_INPUT_ENCRYPTED = true
+    private var appState: Int = APP_STATE_NORMAL
 
-    private val hpPubkey = """
+    // TODO("Buat agar kunci enkripsi/dekripsi disimpan di Android KeyStore")
+    // Kunci HP
+    private val hpPubKey = """
     -----BEGIN PUBLIC KEY-----
     MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6yN4qhtwMG0/O3yqULK
     hmRd/P+/bqySvlQ9xRZy2Jw8WYLTI9ruX7ToEKwmX7nErvOWJEHj7T03i6aeTymr
@@ -53,7 +50,7 @@ class ConnectActivity : AppCompatActivity() {
     kQIDAQAB
     -----END PUBLIC KEY-----""".trimIndent()
 
-    private val hpPrivkey = """
+    private val hpPrivateKey = """
     -----BEGIN PRIVATE KEY-----
     MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCnrI3iqG3AwbT8
     7fKpQsqGZF38/79urJK+VD3FFnLYnDxZgtMj2u5ftOgQrCZfucSu85YkQePtPTeL
@@ -83,6 +80,7 @@ class ConnectActivity : AppCompatActivity() {
     ECXV4JH+wpBYWfW6Ev2qsfE=
     -----END PRIVATE KEY-----""".trimIndent()
 
+    // Kunci device
     private val dPubKey = """
     -----BEGIN PUBLIC KEY-----
     MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuRkf411wgdkPdUd98but
@@ -95,11 +93,11 @@ class ConnectActivity : AppCompatActivity() {
     -----END PUBLIC KEY-----
     """.trimIndent()
 
-    private val hpPrivKeyString = hpPrivkey
+    private val hpPrivKeyString = hpPrivateKey
         .replace("\n", "")
         .replace("-----BEGIN PRIVATE KEY-----", "")
         .replace("-----END PRIVATE KEY-----", "")
-    private val hpPubKeyString = hpPubkey
+    private val hpPubKeyString = hpPubKey
         .replace("\n", "")
         .replace("-----BEGIN PUBLIC KEY-----", "")
         .replace("-----END PUBLIC KEY-----", "")
@@ -113,6 +111,8 @@ class ConnectActivity : AppCompatActivity() {
         const val KEY_ALIAS_DEF = "keyaliascoba"
         const val USE_DEF_KEY = true
         const val lt = "ConnectActivity"
+        const val APP_STATE_NORMAL = 0
+        const val APP_STATE_VERIFY = 1
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -139,15 +139,24 @@ class ConnectActivity : AppCompatActivity() {
             }
         }
         dRSAPublicKey = getDevicePublicKey()
-        myBluetoothService.setEncryptionDecryptionKey(dRSAPublicKey, hpRSAKeyPair.private)
+        myBluetoothService.apply {
+            setEncryptionDecryptionKey(dRSAPublicKey, hpRSAKeyPair.private)
+            useOutputEncryption = true
+            useInputDecryption = true
+        }
+
+        appState = APP_STATE_NORMAL
 
         binding.apply {
+            toggleEncryptionButton.text = "Encryption On"
+            toggleDecryptionButton.text = "Decryption On"
             connectButton.setOnClickListener { connectToDevice() }
             sendMessageButton.setOnClickListener { sendMessage() }
             disconnectButton.setOnClickListener { disconnectFromDevice() }
             toggleEncryptionButton.setOnClickListener { toggleEncryption() }
             toggleDecryptionButton.setOnClickListener { toggleDecryption() }
             hashReplyButton.setOnClickListener { hashReply() }
+            verifyUserButton.setOnClickListener { verifyUser() }
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
@@ -162,25 +171,46 @@ class ConnectActivity : AppCompatActivity() {
     object: Handler() {
         override fun handleMessage(msg: Message) {
             when (msg.what) {
-                MESSAGE_READ -> {
-                    // update the text
-                    incomingBytes = msg.obj as ByteArray
-                    val incomingMessage = String(incomingBytes, 0, msg.arg1)
-                    val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
-                    binding.chatField.text = chatUpdate
-                }
-                MESSAGE_WRITE -> {
-                    // update the text
-                    val writeBuf = msg.obj as ByteArray
-                    val writeMessage = String(writeBuf)
-                    val chatUpdate = "${binding.chatField.text} \nYou: $writeMessage"
-                    binding.chatField.text = chatUpdate
-                }
+                MESSAGE_READ -> processBTInput(msg)
+                MESSAGE_WRITE -> processBTOutput(msg)
+            }
+        }
+    }
+
+    private fun verifyUser() {
+        // TODO("Ubah password agar tidak di-hardcode")
+        val bytes: ByteArray = "1998".toByteArray(Charset.defaultCharset())
+        myBluetoothService.write(bytes)
+        appState = APP_STATE_VERIFY
+    }
+
+    private fun processBTOutput(msg: Message) {
+        val writeBuf = msg.obj as ByteArray
+        val writeMessage = String(writeBuf)
+        val chatUpdate = "${binding.chatField.text} \nYou: $writeMessage"
+        binding.chatField.text = chatUpdate
+    }
+
+    private fun processBTInput(msg: Message) {
+        incomingBytes = msg.obj as ByteArray
+        when (appState) {
+            APP_STATE_VERIFY -> {
+                hashReply()
+                val incomingMessage = String(incomingBytes, 0, msg.arg1)
+                val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
+                binding.chatField.text = chatUpdate
+                appState = APP_STATE_NORMAL
+            }
+            else -> {
+                val incomingMessage = String(incomingBytes, 0, msg.arg1)
+                val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
+                binding.chatField.text = chatUpdate
             }
         }
     }
 
     private fun toggleDecryption() {
+        // TODO("Ubah agar manajemen update text toggling enkripsi dan dekripsi dipindahkan ke handler")
         myBluetoothService.useInputDecryption = !myBluetoothService.useInputDecryption
         if (myBluetoothService.useInputDecryption) {
             Toast.makeText(this, "Input Decryption Enabled.", Toast.LENGTH_SHORT).show()
@@ -203,13 +233,6 @@ class ConnectActivity : AppCompatActivity() {
                 createAsymmetricKeyPair()
             }
         }
-    }
-
-    private fun decryptMyMessage() {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val decryptedMsg= decrypt(encryptedMsg, hpRSAKeyPair.private)
-        val chatUpdate = "${binding.chatField.text} \nDecrypted: $decryptedMsg"
-        binding.chatField.text = chatUpdate
     }
 
     private fun toggleEncryption() {
@@ -259,47 +282,10 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun connectToDevice() {
         // TODO("Ubah myBluetoothService agar mengecek koneksi berhasil")
-        // TODO("Ubah connectToDevice agar memberi pesan jika koneksi berhasil")
+        // TODO("Ubah connectToDevice/handler agar memberi pesan jika koneksi berhasil")
         Toast.makeText(this, "Connecting....", Toast.LENGTH_SHORT).show()
         Log.d(tag, "ConnectActivity: Initializing connection to device.")
         myBluetoothService.startClient(btDevice, uuid)
-    }
-
-    // Encryption/decryption function
-    private fun encrypt(data: String, publicKey: Key?): ByteArray {
-        Log.i(lt, "ConnectActivity: encrypt() called.")
-        val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey)
-        return cipher.doFinal(data.toByteArray())
-    }
-
-    private fun decrypt(data: String, privateKey: Key?): String {
-        Log.i(lt, "ConnectActivity: decrypt() called.")
-        val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        cipher.init(Cipher.DECRYPT_MODE, privateKey)
-        val cleaned = data
-            .replace("\\s".toRegex(), "")
-        return try {
-            val encryptedData = Base64.decode(cleaned, Base64.DEFAULT)
-            val decodedData = cipher.doFinal(encryptedData)
-            String(decodedData)
-        } catch (e: BadPaddingException) {
-            Log.e(lt, "decrypt(): Padding error", e)
-            "decrypt(): Padding Error!"
-        } catch (e: IllegalBlockSizeException) {
-            Log.e(lt, "decrypt(): block size error", e)
-            "decrypt(): Block Size Error!"
-        } catch (e: IllegalArgumentException) {
-            Log.e(lt, "decrypt(): bad base64 error", e)
-            "decrypt(): Bad base 64!"
-        }
-    }
-
-    private fun decryptBytes(data: ByteArray, privateKey: Key?): String {
-        val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        cipher.init(Cipher.DECRYPT_MODE, privateKey)
-        val decodedData = cipher.doFinal(data)
-        return String(decodedData)
     }
 
     private fun createAsymmetricKeyPair(): KeyPair {

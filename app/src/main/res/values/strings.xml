@@ -22,4 +22,5 @@
     <string name="toggle_decryption">Decryption On</string>
     <string name="sign">Sign</string>
     <string name="hash_reply">Hash Reply</string>
+    <string name="verify">Verify</string>
 </resources>

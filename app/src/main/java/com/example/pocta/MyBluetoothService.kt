@@ -33,6 +33,7 @@ class MyBluetoothService(context: Context, handler: Handler) {
     private var btHandler: Handler? = null
     private var btDecryptionKey: PrivateKey? = null
     private var btEncryptionKey: PublicKey? = null
+    // TODO("Buat agar perubahan nilai useOutputEncryption dan useInputDecryption di-pass ke handler.")
     var useOutputEncryption = false
     var useInputDecryption = false
     private val TAG = "MY_BLUETOOTH_SERVICE"
