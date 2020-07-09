@@ -26,12 +26,12 @@ class MainActivity : AppCompatActivity() {
         // check if user's input is the correct PIN
         if (inputPin == userPin) {
             // continue to next activity
-            Toast.makeText(this, "Welcome to the App", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "PIN benar", Toast.LENGTH_SHORT).show()
             val toHub = Intent(this, HubActivity::class.java)
             startActivity(toHub)
         }
         else {
-            Toast.makeText(this, "Wrong PIN!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "PIN yang anda masukkan salah! Silahkan coba lagi.", Toast.LENGTH_SHORT).show()
         }
     }
 }
