@@ -100,6 +100,7 @@ class HubActivity : AppCompatActivity() {
     }
 
     private fun changePin(it: View?) {
-        Toast.makeText(this, "Not implemented yet ;)", Toast.LENGTH_SHORT).show()
+        val toActivity = Intent(this, ChangePinActivity::class.java)
+        startActivity(toActivity)
     }
 }
