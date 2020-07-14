@@ -48,7 +48,11 @@ class ConnectActivity : AppCompatActivity() {
     PTi17HC8cfzHPcaN2D4SPmsogYlOkKaG45hJENjjGfghHIz3W1Xqj2yWjvQd/lIp
     pBBeiYHvkG5IMU+93vP/Gv3OI8DdJIUUrHBuft3BvlCh0daj8+ezYtvTA2M8pG+5
     kQIDAQAB
-    -----END PUBLIC KEY-----""".trimIndent()
+    -----END PUBLIC KEY-----"""
+        .trimIndent()
+        .replace("\n", "")
+        .replace("-----BEGIN PUBLIC KEY-----", "")
+        .replace("-----END PUBLIC KEY-----", "")
 
     private val hpPrivateKey = """
     -----BEGIN PRIVATE KEY-----
@@ -78,7 +82,11 @@ class ConnectActivity : AppCompatActivity() {
     YNObTBIHs0iVzMnTVoMuXKwbgpAecZQS5xl96HNnMmp+E/XhpCX4AXi9B9tYBeDn
     ICW0FnTDHiTZhHc2L9XKgtPGlC7XXtOzLfhMm2fRfkbTVeBYSFxNHQNnny+CVNbz
     ECXV4JH+wpBYWfW6Ev2qsfE=
-    -----END PRIVATE KEY-----""".trimIndent()
+    -----END PRIVATE KEY-----"""
+        .trimIndent()
+        .replace("\n", "")
+        .replace("-----BEGIN PRIVATE KEY-----", "")
+        .replace("-----END PRIVATE KEY-----", "")
 
     // Kunci device
     private val dPubKey = """
@@ -90,18 +98,8 @@ class ConnectActivity : AppCompatActivity() {
     xYD6VDuD3vR75VkDIiZj5Kj24fD8Q63HHCYFHMuUXkVlWLjCVncr5Wk4YPj2dCO/
     4BuVy4Xtb6q0mk1TWj7JaJDSktUQlDEPbRRBsNWenbCW8ZMhLEHyX4VHpC+spVLt
     9QIDAQAB
-    -----END PUBLIC KEY-----
-    """.trimIndent()
-
-    private val hpPrivKeyString = hpPrivateKey
-        .replace("\n", "")
-        .replace("-----BEGIN PRIVATE KEY-----", "")
-        .replace("-----END PRIVATE KEY-----", "")
-    private val hpPubKeyString = hpPubKey
-        .replace("\n", "")
-        .replace("-----BEGIN PUBLIC KEY-----", "")
-        .replace("-----END PUBLIC KEY-----", "")
-    private val dPubKeyString = dPubKey
+    -----END PUBLIC KEY-----"""
+        .trimIndent()
         .replace("\n", "")
         .replace("-----BEGIN PUBLIC KEY-----", "")
         .replace("-----END PUBLIC KEY-----", "")
@@ -109,7 +107,7 @@ class ConnectActivity : AppCompatActivity() {
     companion object {
         const val KEY_ALIAS = "keyaliashisyam"
         const val KEY_ALIAS_DEF = "keyaliascoba"
-        const val USE_DEF_KEY = true
+        const val USE_DEF_KEY = false
         const val lt = "ConnectActivity"
         const val APP_STATE_NORMAL = 0
         const val APP_STATE_VERIFY = 1
@@ -141,15 +139,15 @@ class ConnectActivity : AppCompatActivity() {
         dRSAPublicKey = getDevicePublicKey()
         myBluetoothService.apply {
             setEncryptionDecryptionKey(dRSAPublicKey, hpRSAKeyPair.private)
-            useOutputEncryption = true
-            useInputDecryption = true
+            useOutputEncryption = false
+            useInputDecryption = false
         }
 
         appState = APP_STATE_NORMAL
 
         binding.apply {
-            toggleEncryptionButton.text = "Encryption On"
-            toggleDecryptionButton.text = "Decryption On"
+            toggleEncryptionButton.text = "Encryption Off"
+            toggleDecryptionButton.text = "Decryption Off"
             connectButton.setOnClickListener { connectToDevice() }
             sendMessageButton.setOnClickListener { sendMessage() }
             disconnectButton.setOnClickListener { disconnectFromDevice() }
@@ -157,6 +155,8 @@ class ConnectActivity : AppCompatActivity() {
             toggleDecryptionButton.setOnClickListener { toggleDecryption() }
             hashReplyButton.setOnClickListener { hashReply() }
             verifyUserButton.setOnClickListener { verifyUser() }
+            keyExchangeButton.setOnClickListener { sendHPPublicKey() }
+
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
@@ -175,6 +175,14 @@ class ConnectActivity : AppCompatActivity() {
                 MESSAGE_WRITE -> processBTOutput(msg)
             }
         }
+    }
+
+    private fun sendHPPublicKey() {
+        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
+        val publicKeyBottom = "-----END PUBLIC KEY-----"
+        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
+        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
+        myBluetoothService.write(publicKeyString.toByteArray(Charset.defaultCharset()))
     }
 
     private fun verifyUser() {
@@ -334,8 +342,8 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun getDefaultKeyPair(): KeyPair {
         val keyFactory = KeyFactory.getInstance("RSA")
-        val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(hpPrivKeyString, Base64.DEFAULT))
-        val pubKeySpec = X509EncodedKeySpec(Base64.decode(hpPubKeyString, Base64.DEFAULT))
+        val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(hpPrivateKey, Base64.DEFAULT))
+        val pubKeySpec = X509EncodedKeySpec(Base64.decode(hpPubKey, Base64.DEFAULT))
 
         val privateKey: PrivateKey = keyFactory.generatePrivate(privKeySpec)
         val publicKey: PublicKey = keyFactory.generatePublic(pubKeySpec)
@@ -345,7 +353,7 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun getDevicePublicKey(): PublicKey {
         val keyFactory = KeyFactory.getInstance("RSA")
-        val pubKeySpec = X509EncodedKeySpec(Base64.decode(dPubKeyString, Base64.DEFAULT))
+        val pubKeySpec = X509EncodedKeySpec(Base64.decode(dPubKey, Base64.DEFAULT))
         return keyFactory.generatePublic(pubKeySpec)
     }
 
