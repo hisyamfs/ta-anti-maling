@@ -1,7 +1,6 @@
 package com.example.pocta
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.os.Build
@@ -14,6 +13,7 @@ import android.text.method.ScrollingMovementMethod
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
@@ -24,20 +24,25 @@ import java.nio.charset.Charset
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.SecretKeySpec
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
     private lateinit var myAddress: String
     private lateinit var myBluetoothService: MyBluetoothService
-    private lateinit var hpRSAKeyPair: KeyPair
-    private lateinit var dRSAPublicKey: PublicKey
+    private lateinit var myKey: SecretKey
     private lateinit var incomingBytes: ByteArray
+//    private lateinit var hpRSAKeyPair: KeyPair
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
     private var appState: Int = APP_STATE_NORMAL
 
     // TODO("Buat agar kunci enkripsi/dekripsi disimpan di Android KeyStore")
+    // Kunci AES default
+    private val defaultKeyString = "abcdefghijklmnop"
     // Kunci HP
     private val hpPubKey = """
     -----BEGIN PUBLIC KEY-----
@@ -105,9 +110,9 @@ class ConnectActivity : AppCompatActivity() {
         .replace("-----END PUBLIC KEY-----", "")
 
     companion object {
-        const val KEY_ALIAS = "keyaliashisyam"
-        const val KEY_ALIAS_DEF = "keyaliascoba"
-        const val USE_DEF_KEY = false
+        const val KEY_ALIAS = "keyaliashisyamAES"
+        const val KEY_ALIAS_DEF = "keyaliascobaAES"
+        const val USE_DEF_KEY = true
         const val lt = "ConnectActivity"
         const val APP_STATE_NORMAL = 0
         const val APP_STATE_VERIFY = 1
@@ -126,19 +131,13 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this, myHandler)
-        hpRSAKeyPair = if (USE_DEF_KEY) {
-            getDefaultKeyPair()
+        myKey = if (USE_DEF_KEY) {
+            getDefaultSymmetricKey()
         } else {
-            if (hasMarshmallow()) {
-                createAsymmetricKeyPair()
-                getAsymmetricKeyPair()!!
-            } else {
-                createAsymmetricKeyPair()
-            }
+            getSymmetricKey()
         }
-        dRSAPublicKey = getDevicePublicKey()
         myBluetoothService.apply {
-            setEncryptionDecryptionKey(dRSAPublicKey, hpRSAKeyPair.private)
+            setAESKey(myKey)
             useOutputEncryption = false
             useInputDecryption = false
         }
@@ -155,7 +154,7 @@ class ConnectActivity : AppCompatActivity() {
             toggleDecryptionButton.setOnClickListener { toggleDecryption() }
             hashReplyButton.setOnClickListener { hashReply() }
             verifyUserButton.setOnClickListener { verifyUser() }
-            keyExchangeButton.setOnClickListener { sendHPPublicKey() }
+            keyExchangeButton.setOnClickListener { sendKey() }
 
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
@@ -163,12 +162,12 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        if (::hpRSAKeyPair.isInitialized) removeKeyStore()
+        if (::myKey.isInitialized) removeKeyStore()
         super.onDestroy()
     }
 
     private val myHandler = @SuppressLint("HandlerLeak")
-    object: Handler() {
+    object : Handler() {
         override fun handleMessage(msg: Message) {
             when (msg.what) {
                 MESSAGE_READ -> processBTInput(msg)
@@ -177,12 +176,14 @@ class ConnectActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendHPPublicKey() {
-        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
-        val publicKeyBottom = "-----END PUBLIC KEY-----"
-        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
-        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
-        myBluetoothService.write(publicKeyString.toByteArray(Charset.defaultCharset()))
+    private fun sendKey() {
+//        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
+//        val publicKeyBottom = "-----END PUBLIC KEY-----"
+//        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
+//        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
+//        myBluetoothService.write(publicKeyString.toByteArray(Charset.defaultCharset()))
+        val encodedKey = Base64.encodeToString(myKey.encoded, Base64.DEFAULT)
+        myBluetoothService.write(encodedKey.toByteArray(Charset.defaultCharset()))
     }
 
     private fun verifyUser() {
@@ -231,15 +232,10 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun resetKeys() {
         removeKeyStore()
-        hpRSAKeyPair = if (USE_DEF_KEY) {
-            getDefaultKeyPair()
+        myKey = if (USE_DEF_KEY) {
+            getDefaultSymmetricKey()
         } else {
-            if (hasMarshmallow()) {
-                createAsymmetricKeyPair()
-                getAsymmetricKeyPair()!!
-            } else {
-                createAsymmetricKeyPair()
-            }
+            getSymmetricKey()
         }
     }
 
@@ -296,50 +292,6 @@ class ConnectActivity : AppCompatActivity() {
         myBluetoothService.startClient(btDevice, uuid)
     }
 
-    private fun createAsymmetricKeyPair(): KeyPair {
-        val generator: KeyPairGenerator
-
-        if (hasMarshmallow()) {
-            generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
-            getKeyGenParameterSpec(generator)
-        } else {
-            generator = KeyPairGenerator.getInstance("RSA")
-            generator.initialize(2048)
-        }
-
-        return generator.generateKeyPair()
-    }
-
-    @TargetApi(23)
-    private fun getKeyGenParameterSpec(generator: KeyPairGenerator) {
-        val builder = KeyGenParameterSpec.Builder(KEY_ALIAS,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-            .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
-            //.setUserAuthenticationRequired(true)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
-
-        generator.initialize(builder.build())
-    }
-
-    private fun getAsymmetricKeyPair(): KeyPair? {
-        val keyStore: KeyStore = createKeyStore()
-
-        val alias: String = if (USE_DEF_KEY) {
-            KEY_ALIAS_DEF
-        } else {
-            KEY_ALIAS
-        }
-
-        val privateKey = keyStore.getKey(alias, null) as PrivateKey?
-        val publicKey = keyStore.getCertificate(alias)?.publicKey
-
-        return if (privateKey != null && publicKey != null) {
-            KeyPair(publicKey, privateKey)
-        } else {
-            null
-        }
-    }
-
     private fun getDefaultKeyPair(): KeyPair {
         val keyFactory = KeyFactory.getInstance("RSA")
         val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(hpPrivateKey, Base64.DEFAULT))
@@ -351,6 +303,48 @@ class ConnectActivity : AppCompatActivity() {
         return KeyPair(publicKey, privateKey)
     }
 
+    // TODO("Masih banyak voodoonya")
+    private fun getSymmetricKey(): SecretKey {
+        return if (hasMarshmallow()) {
+            val ks = createKeyStore()
+            if (!isKeyExists(ks)) {
+                createSymmetricKey()
+            }
+            ks.getKey(KEY_ALIAS, null) as SecretKey
+        } else {
+            val keyGenerator = KeyGenerator.getInstance("AES")
+            keyGenerator.init(128)
+            keyGenerator.generateKey()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun createSymmetricKey(): SecretKey {
+        try {
+            val keygen =
+                KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+            val keyGenParameterSpec = KeyGenParameterSpec.Builder(
+                KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                .setKeySize(128)
+                .build()
+            keygen.init(keyGenParameterSpec)
+            return keygen.generateKey()
+        } catch (e: NoSuchAlgorithmException) {
+            Log.e(lt, "Failed to create a symmetric key", e)
+            return getDefaultSymmetricKey()
+        } catch (e: NoSuchProviderException) {
+            Log.e(lt, "Failed to create a symmetric key", e)
+            return getDefaultSymmetricKey()
+        } catch (e: InvalidAlgorithmParameterException) {
+            Log.e(lt, "Failed to create a symmetric key", e)
+            return getDefaultSymmetricKey()
+        }
+    }
+
     private fun getDevicePublicKey(): PublicKey {
         val keyFactory = KeyFactory.getInstance("RSA")
         val pubKeySpec = X509EncodedKeySpec(Base64.decode(dPubKey, Base64.DEFAULT))
@@ -359,9 +353,16 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun removeKeyStore() {
         val ks = createKeyStore()
-        Log.i(lt, "ConnectActivity: removing key pairs.")
+        Log.i(lt, "ConnectActivity: removing secret key.")
         ks.deleteEntry(KEY_ALIAS)
-        ks.deleteEntry(KEY_ALIAS_DEF)
+    }
+
+    private fun isKeyExists(ks: KeyStore): Boolean {
+        val aliases = ks.aliases()
+        while (aliases.hasMoreElements()) {
+            return (KEY_ALIAS == aliases.nextElement())
+        }
+        return false
     }
 
     private fun createKeyStore(): KeyStore {
@@ -369,8 +370,13 @@ class ConnectActivity : AppCompatActivity() {
         keyStore.load(null)
         return keyStore
     }
+
+    private fun getDefaultSymmetricKey(): SecretKey {
+        val secretKeyByteArray = defaultKeyString.toByteArray()
+        return SecretKeySpec(secretKeyByteArray, "AES")
+    }
 }
 
-fun hasMarshmallow() : Boolean {
+fun hasMarshmallow(): Boolean {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
 }

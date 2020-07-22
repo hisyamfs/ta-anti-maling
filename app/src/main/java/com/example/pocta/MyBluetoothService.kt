@@ -1,5 +1,6 @@
 package com.example.pocta
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
@@ -20,6 +21,7 @@ import java.util.*
 import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.IllegalBlockSizeException
+import javax.crypto.SecretKey
 
 class MyBluetoothService(context: Context, handler: Handler) {
     private var btAdapter: BluetoothAdapter? = null
@@ -31,8 +33,7 @@ class MyBluetoothService(context: Context, handler: Handler) {
     private var btNewState : Int = 0
     private var btContext: Context? = null
     private var btHandler: Handler? = null
-    private var btDecryptionKey: PrivateKey? = null
-    private var btEncryptionKey: PublicKey? = null
+    private var btEncryptionKey: SecretKey? = null
     // TODO("Buat agar perubahan nilai useOutputEncryption dan useInputDecryption di-pass ke handler.")
     var useOutputEncryption = false
     var useInputDecryption = false
@@ -110,18 +111,34 @@ class MyBluetoothService(context: Context, handler: Handler) {
         btConnectedThread?.write(bytes)
     }
 
-    fun setEncryptionDecryptionKey(publicKey: PublicKey, privateKey: PrivateKey) {
+    fun setAESKey(key: SecretKey) {
         stop()
-        btEncryptionKey = publicKey
-        btDecryptionKey = privateKey
+        btEncryptionKey = key
     }
 
+    @SuppressLint("GetInstance")
     fun btEncrypt(bytes: ByteArray) : ByteArray {
         if (btEncryptionKey != null) {
+            // pad input with nulls if needed
+            val final: ByteArray
+            if (bytes.size % 16 != 0) {
+                Log.i(TAG, "Padding input bytes")
+                val paddedSize = bytes.size/16 + 16
+                final = ByteArray(paddedSize)
+                for (i in final.indices) {
+                    if (i < bytes.size) {
+                        final[i] = bytes[i]
+                    } else {
+                        final[i] = 0
+                    }
+                }
+            } else {
+                final = bytes
+            }
             return try {
-                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                val cipher: Cipher = Cipher.getInstance("AES/ECB/NoPadding")
                 cipher.init(Cipher.ENCRYPT_MODE, btEncryptionKey)
-                cipher.doFinal(bytes)
+                cipher.doFinal(final)
             } catch (e: BadPaddingException) {
                 Log.e(TAG, "decrypt(): Padding error", e)
                 "decrypt(): Padding Error!".toByteArray(Charset.defaultCharset())
@@ -135,11 +152,12 @@ class MyBluetoothService(context: Context, handler: Handler) {
         } else return "Encryption Key not Found".toByteArray()
     }
 
+    @SuppressLint("GetInstance")
     fun btDecrypt(bytes: ByteArray) : ByteArray {
-        if (btDecryptionKey != null) {
+        if (btEncryptionKey != null) {
             return try {
-                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-                cipher.init(Cipher.DECRYPT_MODE, btDecryptionKey)
+                val cipher: Cipher = Cipher.getInstance("AES/ECB/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, btEncryptionKey)
                 cipher.doFinal(bytes)
             } catch (e: BadPaddingException) {
                 Log.e(TAG, "decrypt(): Padding error", e)
@@ -273,29 +291,29 @@ class MyBluetoothService(context: Context, handler: Handler) {
         // TODO("Ubah fungsi btDecrypt() agar hanya menerima sebagian mmBuffer saja, yaitu sebanyak byte yang diterima")
         override fun run() {
             var numBytes: Int
-            val mmBuffer = ByteArray(256)
+            val mmBuffer = ByteArray(128)
 
             while (true) {
                 try {
                     if (mmInStream != null) {
                         numBytes = mmInStream.read(mmBuffer)
+                        val inBytes: ByteArray = mmBuffer.copyOfRange(0, numBytes)
                         Log.d(TAG, "connected thread: receiving $numBytes bytes")
                         var hexString = ""
-                        for (i in mmBuffer.indices) {
+                        for (i in inBytes.indices) {
                             val hex = if (i % 16 == 0) {
-                                String.format("\n%02X ", mmBuffer[i])
+                                String.format("\n%02X ", inBytes[i])
                             } else {
-                                String.format("%02X ", mmBuffer[i])
+                                String.format("%02X ", inBytes[i])
                             }
                             hexString = "$hexString $hex"
                         }
                         Log.d(TAG, "connected thread: input stream: $hexString")
-
-                        val inBytes: ByteArray =
-                            if (useInputDecryption) btDecrypt(mmBuffer) else mmBuffer
-                        numBytes = inBytes.size
-
-                        btHandler?.obtainMessage(MESSAGE_READ, numBytes, -1, inBytes)
+                        val final =
+                            if (useInputDecryption) btDecrypt(inBytes)
+                            else inBytes
+                        numBytes = final.size
+                        btHandler?.obtainMessage(MESSAGE_READ, numBytes, -1, final)
                             ?.sendToTarget()
                     } else {
                         Log.d(TAG, "mmInStream is null")
