@@ -115,7 +115,14 @@ class ConnectActivity : AppCompatActivity() {
         const val USE_DEF_KEY = true
         const val lt = "ConnectActivity"
         const val APP_STATE_NORMAL = 0
-        const val APP_STATE_VERIFY = 1
+        const val APP_STATE_REQUEST = 1
+        const val APP_STATE_CHALLENGE = 2
+        const val APP_STATE_RESPONSE = 3
+        const val APP_STATE_PIN = 4
+        const val APP_STATE_UNLOCK = 5
+        const val APP_STATE_ALARM = -1
+        const val ACK = "1"
+        const val NACK = "0"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,8 +152,6 @@ class ConnectActivity : AppCompatActivity() {
         appState = APP_STATE_NORMAL
 
         binding.apply {
-            toggleEncryptionButton.text = "Encryption Off"
-            toggleDecryptionButton.text = "Decryption Off"
             connectButton.setOnClickListener { connectToDevice() }
             sendMessageButton.setOnClickListener { sendMessage() }
             disconnectButton.setOnClickListener { disconnectFromDevice() }
@@ -159,6 +164,9 @@ class ConnectActivity : AppCompatActivity() {
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
+
+        disableDecryption()
+        disableEncryption()
     }
 
     override fun onDestroy() {
@@ -188,9 +196,11 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun verifyUser() {
         // TODO("Ubah password agar tidak di-hardcode")
+        appState = APP_STATE_REQUEST
+        disableEncryption()
+        disableDecryption()
         val bytes: ByteArray = "1998".toByteArray(Charset.defaultCharset())
         myBluetoothService.write(bytes)
-        appState = APP_STATE_VERIFY
     }
 
     private fun processBTOutput(msg: Message) {
@@ -202,32 +212,92 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun processBTInput(msg: Message) {
         incomingBytes = msg.obj as ByteArray
+        val incomingMessage = String(incomingBytes, 0, msg.arg1)
+        val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
+        binding.chatField.text = chatUpdate
+        val nextState: Int
         when (appState) {
-            APP_STATE_VERIFY -> {
-                hashReply()
-                val incomingMessage = String(incomingBytes, 0, msg.arg1)
-                val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
-                binding.chatField.text = chatUpdate
-                appState = APP_STATE_NORMAL
+            APP_STATE_REQUEST -> {
+                if (incomingMessage == ACK) {
+                    nextState = APP_STATE_CHALLENGE
+                } else {
+                    val idNotFoundStr = "${binding.chatField.text} \nUser ID not Found"
+                    binding.chatField.text = idNotFoundStr
+                    nextState = APP_STATE_NORMAL
+                }
             }
-            else -> {
-                val incomingMessage = String(incomingBytes, 0, msg.arg1)
-                val chatUpdate = "${binding.chatField.text} \n${btDevice?.name}: $incomingMessage"
-                binding.chatField.text = chatUpdate
+            APP_STATE_CHALLENGE -> {
+                enableEncryption()
+                nextState = APP_STATE_RESPONSE
+                myBluetoothService.write(incomingBytes)
             }
+            APP_STATE_RESPONSE -> {
+                if (incomingMessage == ACK) {
+                    nextState = APP_STATE_PIN
+                    val mockPin = "1234".toByteArray()
+                    myBluetoothService.write(mockPin)
+                } else {
+                    val cramMismatchStr = "${binding.chatField.text} \nFailed response from User Phone : Response-Challenge Mismatch"
+                    binding.chatField.text = cramMismatchStr
+                    nextState = APP_STATE_NORMAL
+                }
+            }
+            APP_STATE_PIN -> {
+                if (incomingMessage == ACK) {
+                    val unlockStr = "${binding.chatField.text} \n!!!! DEVICE UNLOCKED !!!!\nPlease wait for a second to wait for the device to be locked again."
+                    binding.chatField.text = unlockStr
+                    nextState = APP_STATE_UNLOCK
+                } else {
+                    val wrongPinStr = "${binding.chatField.text} \nIncorrect PIN input"
+                    binding.chatField.text = wrongPinStr
+                    nextState = APP_STATE_NORMAL
+                }
+            }
+            APP_STATE_UNLOCK -> {
+                nextState = APP_STATE_NORMAL
+            }
+            else -> nextState = APP_STATE_NORMAL
         }
+
+        appState = nextState
     }
 
     private fun toggleDecryption() {
         // TODO("Ubah agar manajemen update text toggling enkripsi dan dekripsi dipindahkan ke handler")
-        myBluetoothService.useInputDecryption = !myBluetoothService.useInputDecryption
         if (myBluetoothService.useInputDecryption) {
-            Toast.makeText(this, "Input Decryption Enabled.", Toast.LENGTH_SHORT).show()
-            binding.toggleDecryptionButton.text = "Decryption On"
+            disableDecryption()
         } else {
-            Toast.makeText(this, "Input Decryption Disabled.", Toast.LENGTH_SHORT).show()
-            binding.toggleDecryptionButton.text = "Decryption Off"
+            enableDecryption()
         }
+    }
+
+    private fun toggleEncryption() {
+        myBluetoothService.useOutputEncryption = !myBluetoothService.useOutputEncryption
+        if (myBluetoothService.useOutputEncryption) {
+            disableEncryption()
+        } else {
+            enableEncryption()
+        }
+    }
+
+    private fun enableEncryption() {
+        myBluetoothService.useOutputEncryption = true
+        binding.toggleEncryptionButton.text = "Encryption On"
+    }
+
+    private fun disableEncryption() {
+        myBluetoothService.useOutputEncryption = false
+        binding.toggleEncryptionButton.text = "Encryption Off"
+    }
+
+    private fun enableDecryption() {
+        myBluetoothService.useInputDecryption = true
+        binding.toggleDecryptionButton.text = "Decryption On"
+    }
+
+    private fun disableDecryption() {
+        myBluetoothService.useInputDecryption = false
+        binding.toggleDecryptionButton.text = "Decryption Off"
     }
 
     private fun resetKeys() {
@@ -236,17 +306,6 @@ class ConnectActivity : AppCompatActivity() {
             getDefaultSymmetricKey()
         } else {
             getSymmetricKey()
-        }
-    }
-
-    private fun toggleEncryption() {
-        myBluetoothService.useOutputEncryption = !myBluetoothService.useOutputEncryption
-        if (myBluetoothService.useOutputEncryption) {
-            Toast.makeText(this, "Output Encryption Enabled.", Toast.LENGTH_SHORT).show()
-            binding.toggleEncryptionButton.text = "Encryption On"
-        } else {
-            Toast.makeText(this, "Output Encryption Disabled.", Toast.LENGTH_SHORT).show()
-            binding.toggleEncryptionButton.text = "Encryption Off"
         }
     }
 
