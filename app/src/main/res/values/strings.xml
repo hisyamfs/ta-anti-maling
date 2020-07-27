@@ -24,4 +24,5 @@
     <string name="hash_reply">Hash Reply</string>
     <string name="verify">Unlock device</string>
     <string name="keyExchangeButton">Tukar Kunci</string>
+    <string name="inputIdFieldHint">Masukkan ID anda....</string>
 </resources>

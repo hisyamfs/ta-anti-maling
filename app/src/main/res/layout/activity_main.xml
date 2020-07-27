@@ -16,7 +16,18 @@
             android:layout_margin="16dp"
             android:textAlignment="center"
             android:text="@string/welcome_text"
-            android:textSize="30sp" />
+            android:textSize="20sp" />
+        <EditText
+            android:id="@+id/inputIdField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:textAlignment="center"
+            android:hint="@string/inputIdFieldHint"
+            android:autofillHints="@string/inputIdFieldHint"
+            android:ems="10"
+            android:inputType="text"
+            android:layout_margin="8dp"/>
         <EditText
             android:id="@+id/inputPinField"
             android:layout_width="match_parent"
@@ -27,7 +38,7 @@
             android:autofillHints="@string/enter_your_pin"
             android:ems="10"
             android:inputType="numberPassword"
-            android:layout_margin="16dp" />
+            android:layout_margin="8dp" />
         <Button
             android:id="@+id/inputPinButton"
             android:layout_width="wrap_content"

@@ -33,6 +33,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var myAddress: String
     private lateinit var myBluetoothService: MyBluetoothService
     private lateinit var myKey: SecretKey
+    private lateinit var myPIN: String
     private lateinit var incomingBytes: ByteArray
 //    private lateinit var hpRSAKeyPair: KeyPair
     private var btDevice: BluetoothDevice? = null
@@ -143,6 +144,8 @@ class ConnectActivity : AppCompatActivity() {
         } else {
             getSymmetricKey()
         }
+        myPIN = getSharedPreferences("PREFS", 0)
+            .getString("PIN", "1998") ?: "1998"
         myBluetoothService.apply {
             setAESKey(myKey)
             useOutputEncryption = false
@@ -234,8 +237,7 @@ class ConnectActivity : AppCompatActivity() {
             APP_STATE_RESPONSE -> {
                 if (incomingMessage == ACK) {
                     nextState = APP_STATE_PIN
-                    val mockPin = "1234".toByteArray()
-                    myBluetoothService.write(mockPin)
+                    myBluetoothService.write(myPIN.toByteArray())
                 } else {
                     val cramMismatchStr = "${binding.chatField.text} \nFailed response from User Phone : Response-Challenge Mismatch"
                     binding.chatField.text = cramMismatchStr
