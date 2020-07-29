@@ -14,20 +14,17 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_main)
-        userPin = getSharedPreferences("PREFS", 0)
-            .getString("PIN", "1998")
-            ?: "1998"
-        binding.inputPinButton.setOnClickListener{
-            processPinInput()
+        binding.apply {
+            inputPinButton.setOnClickListener{ processUserCredential() }
         }
     }
 
-    private fun processPinInput() {
+    private fun processUserCredential() {
+        // TODO("Tambahkan pemrosesan user ID")
         val inputPin = binding.inputPinField.text.toString()
+        val inputId = binding.inputIdField.text.toString()
         // check if user's input is the correct PIN
-        userPin = getSharedPreferences("PREFS", 0)
-            .getString("PIN", "1998")
-            ?: "1998"
+        userPin = getUserPin()
         if (inputPin == userPin) {
             // continue to next activity
             Toast.makeText(this, "PIN benar", Toast.LENGTH_SHORT).show()
@@ -35,7 +32,13 @@ class MainActivity : AppCompatActivity() {
             startActivity(toHub)
         }
         else {
-            Toast.makeText(this, "PIN yang anda masukkan salah! Seharusnya $userPin.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "PIN yang anda masukkan salah! Seharusnya $userPin.",
+                            Toast.LENGTH_LONG).show()
         }
     }
+
+    private fun getUserPin() : String =
+        getSharedPreferences("PREFS", 0)
+        .getString("PIN", "1998")
+        ?: "1998"
 }
