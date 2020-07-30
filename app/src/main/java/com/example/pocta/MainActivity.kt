@@ -22,7 +22,6 @@ class MainActivity : AppCompatActivity() {
     private fun processUserCredential() {
         // TODO("Tambahkan pemrosesan user ID")
         val inputPin = binding.inputPinField.text.toString()
-        val inputId = binding.inputIdField.text.toString()
         // check if user's input is the correct PIN
         userPin = getUserPin()
         if (inputPin == userPin) {
