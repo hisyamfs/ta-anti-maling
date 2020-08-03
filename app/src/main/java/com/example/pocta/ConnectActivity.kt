@@ -127,7 +127,9 @@ class ConnectActivity : AppCompatActivity() {
         PIN,
         UNLOCK,
         NEW_PIN,
-        ALARM
+        ALARM,
+        KEY_EXCHANGE,
+        REGISTER
     }
 
     private enum class USER_REQUEST(val reqString: String) {
@@ -178,6 +180,7 @@ class ConnectActivity : AppCompatActivity() {
             unlockDeviceButton.setOnClickListener { sendUnlockRequest() }
             changeUserPinButton.setOnClickListener { sendPinChangeRequest() }
             keyExchangeButton.setOnClickListener { sendKey() }
+            phoneRegistrationButton.setOnClickListener { sendRegistrationRequest() }
 
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
@@ -210,6 +213,17 @@ class ConnectActivity : AppCompatActivity() {
 //        myBluetoothService.write(publicKeyString.toByteArray(Charset.defaultCharset()))
         val encodedKey = Base64.encodeToString(myKey.encoded, Base64.DEFAULT)
         myBluetoothService.write(encodedKey.toByteArray(Charset.defaultCharset()))
+    }
+
+    private fun sendRegistrationRequest() {
+        if (appState == APP_STATE.NORMAL) {
+            userRequest = USER_REQUEST.REGISTER_PHONE
+            disableEncryption()
+            disableDecryption()
+            appState = APP_STATE.REQUEST
+            val bytes: ByteArray = userRequest.reqString.toByteArray(Charset.defaultCharset())
+            myBluetoothService.write(bytes)
+        }
     }
 
     private fun sendPinChangeRequest() {
@@ -250,9 +264,17 @@ class ConnectActivity : AppCompatActivity() {
         when (appState) {
             APP_STATE.REQUEST -> {
                 if (incomingMessage == ACK) {
-                    nextState = APP_STATE.ID_CHECK
                     disableEncryption()
-                    myBluetoothService.write(USER_ID.toByteArray())
+                    when (userRequest) {
+                        USER_REQUEST.REGISTER_PHONE -> {
+                            nextState = APP_STATE.KEY_EXCHANGE
+                            myBluetoothService.write("Placeholder public key HP".toByteArray())
+                        }
+                        else -> {
+                            nextState = APP_STATE.ID_CHECK
+                            myBluetoothService.write(USER_ID.toByteArray())
+                        }
+                    }
                 } else {
                     val reqNotFoundStr = "${binding.chatField.text} \nRequest not found"
                     binding.chatField.text = reqNotFoundStr
@@ -268,6 +290,23 @@ class ConnectActivity : AppCompatActivity() {
                     nextState = APP_STATE.NORMAL
                 }
             }
+            APP_STATE.KEY_EXCHANGE -> {
+                when (incomingMessage) {
+                    ACK -> {
+                        nextState = APP_STATE.PIN
+                        val pinInputPrompt =
+                            "${binding.chatField.text}\nMasukkan PIN anda! (CATATAN: Pastikan enkripsi aktif.)\n"
+                        binding.chatField.text = pinInputPrompt
+                        enableEncryption()
+                    }
+                    NACK -> nextState = APP_STATE.NORMAL
+                    else -> {
+                        val dPubKeyStr = "${binding.chatField.text} \nESP PK: $incomingMessage"
+                        binding.chatField.text = dPubKeyStr
+                        nextState = APP_STATE.KEY_EXCHANGE
+                    }
+                }
+            }
             APP_STATE.CHALLENGE -> {
                 enableEncryption()
                 nextState = APP_STATE.RESPONSE
@@ -276,11 +315,13 @@ class ConnectActivity : AppCompatActivity() {
             APP_STATE.RESPONSE -> {
                 if (incomingMessage == ACK) {
                     nextState = APP_STATE.PIN
-                    val pinInputPrompt = "${binding.chatField.text}\nMasukkan PIN anda! (CATATAN: Pastikan enkripsi aktif.)\n"
+                    val pinInputPrompt =
+                        "${binding.chatField.text}\nMasukkan PIN anda! (CATATAN: Pastikan enkripsi aktif.)\n"
                     binding.chatField.text = pinInputPrompt
                     enableEncryption()
                 } else {
-                    val cramMismatchStr = "${binding.chatField.text} \nFailed response from User Phone : Response-Challenge Mismatch"
+                    val cramMismatchStr =
+                        "${binding.chatField.text} \nFailed response from User Phone : Response-Challenge Mismatch"
                     binding.chatField.text = cramMismatchStr
                     nextState = APP_STATE.NORMAL
                 }
@@ -294,7 +335,7 @@ class ConnectActivity : AppCompatActivity() {
                             disableEncryption()
                             APP_STATE.UNLOCK
                         }
-                        USER_REQUEST.CHANGE_PIN -> {
+                        USER_REQUEST.REGISTER_PHONE, USER_REQUEST.CHANGE_PIN -> {
                             enableEncryption()
                             val newPinStr = "${binding.chatField.text}\nMasukkan PIN baru (Pastikan enkripsi aktif)."
                             binding.chatField.text = newPinStr
@@ -313,11 +354,24 @@ class ConnectActivity : AppCompatActivity() {
             }
             APP_STATE.NEW_PIN -> {
                 disableEncryption()
-                val confirmationStr: String
-                if (incomingMessage == ACK) {
-                    confirmationStr = "${binding.chatField.text}\nPIN berhasil didaftarkan."
+                val confirmationStr: String = if (incomingMessage == ACK) {
+                    "${binding.chatField.text}\nPIN berhasil didaftarkan."
                 } else {
-                    confirmationStr = "${binding.chatField.text}\nPIN gagal didaftarkan."
+                    "${binding.chatField.text}\nPIN gagal didaftarkan."
+                }
+                binding.chatField.text = confirmationStr
+
+                nextState = when (userRequest) {
+                    USER_REQUEST.REGISTER_PHONE -> APP_STATE.REGISTER
+                    else -> APP_STATE.NORMAL
+                }
+            }
+            APP_STATE.REGISTER -> {
+                disableEncryption()
+                val confirmationStr: String = if (incomingMessage == ACK) {
+                    "${binding.chatField.text}\nHP berhasil didaftarkan."
+                } else {
+                    "${binding.chatField.text}\nHP gagal didaftarkan."
                 }
                 binding.chatField.text = confirmationStr
                 nextState = APP_STATE.NORMAL
