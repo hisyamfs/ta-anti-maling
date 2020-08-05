@@ -1,6 +1,7 @@
 package com.example.pocta
 
 import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.os.Build
@@ -20,12 +21,12 @@ import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_WRITE
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
+import java.lang.Exception
 import java.nio.charset.Charset
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
+import javax.crypto.*
 import javax.crypto.spec.SecretKeySpec
 
 class ConnectActivity : AppCompatActivity() {
@@ -34,7 +35,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var myBluetoothService: MyBluetoothService
     private lateinit var myKey: SecretKey
     private lateinit var incomingBytes: ByteArray
-//    private lateinit var hpRSAKeyPair: KeyPair
+    private lateinit var hpRSAKeyPair: KeyPair
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
@@ -42,71 +43,6 @@ class ConnectActivity : AppCompatActivity() {
     // TODO("Buat agar kunci enkripsi/dekripsi disimpan di Android KeyStore")
     // Kunci AES default
     private val defaultKeyString = "abcdefghijklmnop"
-    // Kunci HP
-    private val hpPubKey = """
-    -----BEGIN PUBLIC KEY-----
-    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6yN4qhtwMG0/O3yqULK
-    hmRd/P+/bqySvlQ9xRZy2Jw8WYLTI9ruX7ToEKwmX7nErvOWJEHj7T03i6aeTymr
-    mkX6TF9zyUu2WrETti+8QwlfeF58j2TFpqGtvJiuMVd78XuNdaWpvY0NIaUlDhBb
-    snFkzhTcAERQEqEIIQEi65HE0NPuR7Nm4ErtXHYqftiom4Vdnt7DLKJX8k2iJERW
-    PTi17HC8cfzHPcaN2D4SPmsogYlOkKaG45hJENjjGfghHIz3W1Xqj2yWjvQd/lIp
-    pBBeiYHvkG5IMU+93vP/Gv3OI8DdJIUUrHBuft3BvlCh0daj8+ezYtvTA2M8pG+5
-    kQIDAQAB
-    -----END PUBLIC KEY-----"""
-        .trimIndent()
-        .replace("\n", "")
-        .replace("-----BEGIN PUBLIC KEY-----", "")
-        .replace("-----END PUBLIC KEY-----", "")
-
-    private val hpPrivateKey = """
-    -----BEGIN PRIVATE KEY-----
-    MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCnrI3iqG3AwbT8
-    7fKpQsqGZF38/79urJK+VD3FFnLYnDxZgtMj2u5ftOgQrCZfucSu85YkQePtPTeL
-    pp5PKauaRfpMX3PJS7ZasRO2L7xDCV94XnyPZMWmoa28mK4xV3vxe411pam9jQ0h
-    pSUOEFuycWTOFNwARFASoQghASLrkcTQ0+5Hs2bgSu1cdip+2KibhV2e3sMsolfy
-    TaIkRFY9OLXscLxx/Mc9xo3YPhI+ayiBiU6QpobjmEkQ2OMZ+CEcjPdbVeqPbJaO
-    9B3+UimkEF6Jge+QbkgxT73e8/8a/c4jwN0khRSscG5+3cG+UKHR1qPz57Ni29MD
-    Yzykb7mRAgMBAAECggEBAJbIdsOoQSKBT7fQZ1LNDIE0isz0U/s7166u5OlymY6v
-    WRoJqsPookqQzcwIc23MCdJmnNM4KbbzQRsll+GKkJXobgD2KZKQsoj2CsrgPIVw
-    TVlaZtswfQmvBSS/jI40pPHw8LImavFZgcCK2Tq/fSaIEGW+nmTjCbrm8v9zHSsG
-    8ui8Cd9eHE8XpFsCubAQgtQnFP7JXI1LA9aZ9aBioI91SHtO/QtNkNi7vRuInXX/
-    vf7F2kaNPIWnFC9MW9uzPFOKYUyTEOiA/4bFstMas/lLEQVnhGejea2j3Rz2PnHX
-    kPcQYwwpOY64Qa7QH+qWCUJI5DtBJjkABzFtoMb4XC0CgYEA2w+bJMyIfASLK+P6
-    JjyzPPU6NpFTE4t7wflJZ3sxv1YGZCR5I8xhntrHf3/KZiXlNydWYUtlE4Cx1j8/
-    oIRaVcyn6oxMMp5e3CDWxejNIs172j0SWllt7GrbiWPdp0p8SEU9LwHlee71yTp6
-    kA1WTBsG7Sh9HoaS7J72fE8FgQsCgYEAw/KvPkmivvsp1CDuW+UTYrl/bMDrhoai
-    R0YkGS+UpX9wCTYoaPbOS9outBpAEpjtsHryf/ZRh/IkXGc8G3fysocLY4p8w/Zy
-    8TgV+pKAJxT+3kX6i5IteLRG+XMi+i8l3siM/iZA8AWHrNVsIn+Bw/h4nE0jEWVL
-    eZileKnIiVMCgYBbi74ONtui2FNA2FkluaA+DU1ymHDbbiMeAQvIDxfPGig5mXR2
-    nWb+d/d/NOxkm9manvneVx+6csHfAzeX4TfPO2PBBTiivsRtwdt/gbaYoL7tiTAu
-    SclCT7XHSNDMpLgji6vyBRzdRBu7KJEnuisiSvkuCwmexCaKdDQV5wAp2QKBgEq1
-    TaFm+9jq9AC/6YE57tE2PmIdj+8Dh/26vWqo3HjZBMNOVcvnRbJf5myekY1Fp2Ih
-    DjJBnMZDSR+98IncirkMiggStg0U+rADnUWi859y/tWKQsNSIWoi+eiDwHM45Kxz
-    NGZ1+U5KHXeFC6x/ht9L7dhSBKvOPh+HVpeRzDanAoGALdbAnJoq2qAir8e7xiH5
-    YNObTBIHs0iVzMnTVoMuXKwbgpAecZQS5xl96HNnMmp+E/XhpCX4AXi9B9tYBeDn
-    ICW0FnTDHiTZhHc2L9XKgtPGlC7XXtOzLfhMm2fRfkbTVeBYSFxNHQNnny+CVNbz
-    ECXV4JH+wpBYWfW6Ev2qsfE=
-    -----END PRIVATE KEY-----"""
-        .trimIndent()
-        .replace("\n", "")
-        .replace("-----BEGIN PRIVATE KEY-----", "")
-        .replace("-----END PRIVATE KEY-----", "")
-
-    // Kunci device
-    private val dPubKey = """
-    -----BEGIN PUBLIC KEY-----
-    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuRkf411wgdkPdUd98but
-    GW3kLj0GMEh0IR6Y4j9hcAuvupwReW/9cBnlkW0JUGVEIJc09/Gek0tKmTQJnXmG
-    bK59lFQ8w2IlkdOC+nas+KDh0oIqv3oOXqsFobARQPf51WMFC2fNIuHF9A7kA4/h
-    nKMphwbqlIlzuh6+W1WfXR7J5LFOA1354JRzAPNnWxY8cn21MaP4pO7H17fEmhIT
-    xYD6VDuD3vR75VkDIiZj5Kj24fD8Q63HHCYFHMuUXkVlWLjCVncr5Wk4YPj2dCO/
-    4BuVy4Xtb6q0mk1TWj7JaJDSktUQlDEPbRRBsNWenbCW8ZMhLEHyX4VHpC+spVLt
-    9QIDAQAB
-    -----END PUBLIC KEY-----"""
-        .trimIndent()
-        .replace("\n", "")
-        .replace("-----BEGIN PUBLIC KEY-----", "")
-        .replace("-----END PUBLIC KEY-----", "")
 
     companion object {
         const val KEY_ALIAS = "keyaliashisyamAES"
@@ -162,6 +98,12 @@ class ConnectActivity : AppCompatActivity() {
         } else {
             getSymmetricKey()
         }
+        hpRSAKeyPair = if (hasMarshmallow()) {
+            createAsymmetricKeyPair()
+            getAsymmetricKeyPair()!!
+        } else {
+            createAsymmetricKeyPair()
+        }
         myBluetoothService.apply {
             setAESKey(myKey)
             useOutputEncryption = false
@@ -206,13 +148,16 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     private fun sendKey() {
-//        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
-//        val publicKeyBottom = "-----END PUBLIC KEY-----"
-//        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
-//        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
-//        myBluetoothService.write(publicKeyString.toByteArray(Charset.defaultCharset()))
         val encodedKey = Base64.encodeToString(myKey.encoded, Base64.DEFAULT)
         myBluetoothService.write(encodedKey.toByteArray(Charset.defaultCharset()))
+    }
+
+    private fun sendRSAPubKey() {
+        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
+        val publicKeyBottom = "-----END PUBLIC KEY-----"
+        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
+        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
+        myBluetoothService.write(publicKeyString.toByteArray())
     }
 
     private fun sendRegistrationRequest() {
@@ -268,7 +213,7 @@ class ConnectActivity : AppCompatActivity() {
                     when (userRequest) {
                         USER_REQUEST.REGISTER_PHONE -> {
                             nextState = APP_STATE.KEY_EXCHANGE
-                            myBluetoothService.write("Placeholder public key HP".toByteArray())
+                            sendRSAPubKey()
                         }
                         else -> {
                             nextState = APP_STATE.ID_CHECK
@@ -301,8 +246,10 @@ class ConnectActivity : AppCompatActivity() {
                     }
                     NACK -> nextState = APP_STATE.NORMAL
                     else -> {
-                        val dPubKeyStr = "${binding.chatField.text} \nESP PK: $incomingMessage"
-                        binding.chatField.text = dPubKeyStr
+                        myKey = decryptSecretKey()
+                        disableEncryption()
+                        disableDecryption()
+                        myBluetoothService.setAESKey(myKey)
                         nextState = APP_STATE.KEY_EXCHANGE
                     }
                 }
@@ -337,7 +284,8 @@ class ConnectActivity : AppCompatActivity() {
                         }
                         USER_REQUEST.REGISTER_PHONE, USER_REQUEST.CHANGE_PIN -> {
                             enableEncryption()
-                            val newPinStr = "${binding.chatField.text}\nMasukkan PIN baru (Pastikan enkripsi aktif)."
+                            val newPinStr =
+                                "${binding.chatField.text}\nMasukkan PIN baru (Pastikan enkripsi aktif)."
                             binding.chatField.text = newPinStr
                             APP_STATE.NEW_PIN
                         }
@@ -473,17 +421,6 @@ class ConnectActivity : AppCompatActivity() {
         myBluetoothService.startClient(btDevice, uuid)
     }
 
-    private fun getDefaultKeyPair(): KeyPair {
-        val keyFactory = KeyFactory.getInstance("RSA")
-        val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(hpPrivateKey, Base64.DEFAULT))
-        val pubKeySpec = X509EncodedKeySpec(Base64.decode(hpPubKey, Base64.DEFAULT))
-
-        val privateKey: PrivateKey = keyFactory.generatePrivate(privKeySpec)
-        val publicKey: PublicKey = keyFactory.generatePublic(pubKeySpec)
-
-        return KeyPair(publicKey, privateKey)
-    }
-
     // TODO("Masih banyak voodoonya")
     private fun getSymmetricKey(): SecretKey {
         return if (hasMarshmallow()) {
@@ -526,12 +463,6 @@ class ConnectActivity : AppCompatActivity() {
         }
     }
 
-    private fun getDevicePublicKey(): PublicKey {
-        val keyFactory = KeyFactory.getInstance("RSA")
-        val pubKeySpec = X509EncodedKeySpec(Base64.decode(dPubKey, Base64.DEFAULT))
-        return keyFactory.generatePublic(pubKeySpec)
-    }
-
     private fun removeKeyStore() {
         val ks = createKeyStore()
         Log.i(lt, "ConnectActivity: removing secret key.")
@@ -554,6 +485,76 @@ class ConnectActivity : AppCompatActivity() {
 
     private fun getDefaultSymmetricKey(): SecretKey {
         val secretKeyByteArray = defaultKeyString.toByteArray()
+        return SecretKeySpec(secretKeyByteArray, "AES")
+    }
+
+    private fun createAsymmetricKeyPair(): KeyPair {
+        val generator: KeyPairGenerator
+
+        if (hasMarshmallow()) {
+            generator =
+                KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
+            getKeyGenParameterSpec(generator)
+        } else {
+            generator = KeyPairGenerator.getInstance("RSA")
+            generator.initialize(2048)
+        }
+
+        return generator.generateKeyPair()
+    }
+
+    @TargetApi(23)
+    private fun getKeyGenParameterSpec(generator: KeyPairGenerator) {
+        val builder = KeyGenParameterSpec.Builder(
+            KEY_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
+            //.setUserAuthenticationRequired(true)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
+
+        generator.initialize(builder.build())
+    }
+
+    private fun getAsymmetricKeyPair(): KeyPair? {
+        val keyStore: KeyStore = createKeyStore()
+
+        val alias: String = if (USE_DEF_KEY) {
+            KEY_ALIAS_DEF
+        } else {
+            KEY_ALIAS
+        }
+
+        val privateKey = keyStore.getKey(alias, null) as PrivateKey?
+        val publicKey = keyStore.getCertificate(alias)?.publicKey
+
+        return if (privateKey != null && publicKey != null) {
+            KeyPair(publicKey, privateKey)
+        } else {
+            null
+        }
+    }
+
+    private fun decryptSecretKey(): SecretKey {
+        var secretKeyByteArray: ByteArray
+        secretKeyByteArray = if (hpRSAKeyPair.private != null) {
+            try {
+                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                cipher.init(Cipher.DECRYPT_MODE, hpRSAKeyPair.private)
+                cipher.doFinal(incomingBytes)
+            } catch (e: Exception) {
+                defaultKeyString.toByteArray()
+            }
+        } else {
+            defaultKeyString.toByteArray()
+        }
+        if (secretKeyByteArray.size != 16) secretKeyByteArray = defaultKeyString.toByteArray()
+
+        val b64key = Base64.encodeToString(secretKeyByteArray, Base64.DEFAULT)
+        val keyString = secretKeyByteArray.toString()
+        val keyPrint = "${binding.chatField.text}\nSecret Key: \n$keyString \n$b64key"
+        binding.chatField.text = keyPrint
+
         return SecretKeySpec(secretKeyByteArray, "AES")
     }
 }

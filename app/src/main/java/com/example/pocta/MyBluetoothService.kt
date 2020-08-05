@@ -29,8 +29,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
     private var btConnectThread: ConnectThread? = null
     private var btConnectedThread: ConnectedThread? = null
     private var btDevice: BluetoothDevice? = null
-    private var btState : Int = 0
-    private var btNewState : Int = 0
+    private var btState: Int = 0
+    private var btNewState: Int = 0
     private var btContext: Context? = null
     private var btHandler: Handler? = null
     private var btEncryptionKey: SecretKey? = null
@@ -61,7 +61,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
         btHandler = handler
     }
 
-    @Synchronized fun start() {
+    @Synchronized
+    fun start() {
         Log.d(TAG, "start")
         // Cancel running threads
         stop()
@@ -112,18 +113,17 @@ class MyBluetoothService(context: Context, handler: Handler) {
     }
 
     fun setAESKey(key: SecretKey) {
-        stop()
         btEncryptionKey = key
     }
 
     @SuppressLint("GetInstance")
-    fun btEncrypt(bytes: ByteArray) : ByteArray {
+    fun btEncrypt(bytes: ByteArray): ByteArray {
         if (btEncryptionKey != null) {
             // pad input with nulls if needed
             val final: ByteArray
             if (bytes.size % 16 != 0) {
                 Log.i(TAG, "Padding input bytes")
-                val paddedSize = bytes.size/16 + 16
+                val paddedSize = bytes.size / 16 + 16
                 final = ByteArray(paddedSize)
                 for (i in final.indices) {
                     if (i < bytes.size) {
@@ -153,12 +153,29 @@ class MyBluetoothService(context: Context, handler: Handler) {
     }
 
     @SuppressLint("GetInstance")
-    fun btDecrypt(bytes: ByteArray) : ByteArray {
+    fun btDecrypt(bytes: ByteArray): ByteArray {
         if (btEncryptionKey != null) {
+            // pad input with nulls if needed
+            val final: ByteArray
+            if (bytes.size % 16 != 0) {
+                Log.i(TAG, "Padding input bytes")
+                val paddedSize = bytes.size / 16 + 16
+                final = ByteArray(paddedSize)
+                for (i in final.indices) {
+                    if (i < bytes.size) {
+                        final[i] = bytes[i]
+                    } else {
+                        final[i] = 0
+                    }
+                }
+            } else {
+                final = bytes
+            }
+
             return try {
                 val cipher: Cipher = Cipher.getInstance("AES/ECB/NoPadding")
                 cipher.init(Cipher.DECRYPT_MODE, btEncryptionKey)
-                cipher.doFinal(bytes)
+                cipher.doFinal(final)
             } catch (e: BadPaddingException) {
                 Log.e(TAG, "decrypt(): Padding error", e)
                 "decrypt(): Padding Error!".toByteArray(Charset.defaultCharset())
@@ -176,7 +193,7 @@ class MyBluetoothService(context: Context, handler: Handler) {
         private val mmServerSocket: BluetoothServerSocket?
 
         init {
-            var tmp: BluetoothServerSocket?  = null
+            var tmp: BluetoothServerSocket? = null
             try {
                 tmp = btAdapter?.listenUsingRfcommWithServiceRecord("SECURE_CHAT", uuid)
                 Log.d(TAG, "Accept thread: setting up server using: $uuid")
@@ -221,7 +238,10 @@ class MyBluetoothService(context: Context, handler: Handler) {
         private var tUUID: UUID? = null
 
         init {
-            Log.d(TAG, "connect thread: started, connecting to ${device?.name} at ${device?.address}.")
+            Log.d(
+                TAG,
+                "connect thread: started, connecting to ${device?.name} at ${device?.address}."
+            )
             btDevice = device
             tUUID = myUUID
 
@@ -291,7 +311,7 @@ class MyBluetoothService(context: Context, handler: Handler) {
         // TODO("Ubah fungsi btDecrypt() agar hanya menerima sebagian mmBuffer saja, yaitu sebanyak byte yang diterima")
         override fun run() {
             var numBytes: Int
-            val mmBuffer = ByteArray(128)
+            val mmBuffer = ByteArray(256)
 
             while (true) {
                 try {
@@ -328,7 +348,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
         fun write(bytes: ByteArray) {
             val sentBytes: ByteArray = if (useOutputEncryption) btEncrypt(bytes) else bytes
             // encode in base64 for UI activity
-            val uiBytes: ByteArray = if (useOutputEncryption) Base64.encode(sentBytes, Base64.DEFAULT) else sentBytes
+            val uiBytes: ByteArray =
+                if (useOutputEncryption) Base64.encode(sentBytes, Base64.DEFAULT) else sentBytes
             val text = String(sentBytes)
             Log.d(TAG, "connect thread: write: $text")
             try {
