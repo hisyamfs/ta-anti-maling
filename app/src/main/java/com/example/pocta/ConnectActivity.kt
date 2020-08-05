@@ -535,6 +535,7 @@ class ConnectActivity : AppCompatActivity() {
         }
     }
 
+    // TODO("Rapihin")
     private fun decryptSecretKey(): SecretKey {
         var secretKeyByteArray: ByteArray
         secretKeyByteArray = if (hpRSAKeyPair.private != null) {
