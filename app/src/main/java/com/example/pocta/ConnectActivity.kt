@@ -42,7 +42,7 @@ class ConnectActivity : AppCompatActivity() {
 
     // TODO("Buat agar kunci enkripsi/dekripsi disimpan di Android KeyStore")
     // Kunci AES default
-    private val defaultKeyString = "abcdefghijklmnop"
+    private val defaultKeyString = "YWJjZGVmZ2hpamtsbW5vcA=="
 
     companion object {
         const val KEY_ALIAS = "keyaliashisyamAES"
@@ -93,11 +93,7 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this, myHandler)
-        myKey = if (USE_DEF_KEY) {
-            getDefaultSymmetricKey()
-        } else {
-            getSymmetricKey()
-        }
+        myKey = getStoredKey()
         hpRSAKeyPair = if (hasMarshmallow()) {
             createAsymmetricKeyPair()
             getAsymmetricKeyPair()!!
@@ -317,6 +313,7 @@ class ConnectActivity : AppCompatActivity() {
             APP_STATE.REGISTER -> {
                 disableEncryption()
                 val confirmationStr: String = if (incomingMessage == ACK) {
+                    setStoredKey(myKey)
                     "${binding.chatField.text}\nHP berhasil didaftarkan."
                 } else {
                     "${binding.chatField.text}\nHP gagal didaftarkan."
@@ -557,6 +554,27 @@ class ConnectActivity : AppCompatActivity() {
         binding.chatField.text = keyPrint
 
         return SecretKeySpec(secretKeyByteArray, "AES")
+    }
+
+    // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
+    private fun getStoredKey(): SecretKey {
+        val cipherKeyStr = getSharedPreferences("PREFS", 0)
+            .getString("CIPHERKEY", defaultKeyString)
+            ?: defaultKeyString
+        val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
+        return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
+    }
+
+    // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
+    private fun setStoredKey(newKey: SecretKey?) {
+        if (newKey != null) {
+            val newKeyStr = Base64.encodeToString(newKey.encoded, Base64.DEFAULT)
+            val editor =
+                getSharedPreferences("PREFS", 0)
+                    .edit()
+                    .putString("CIPHERKEY", newKeyStr)
+                    .apply()
+        }
     }
 }
 
