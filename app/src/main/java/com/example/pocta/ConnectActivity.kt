@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Message
+import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.text.method.ScrollingMovementMethod
@@ -36,6 +37,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var myKey: SecretKey
     private lateinit var incomingBytes: ByteArray
     private lateinit var hpRSAKeyPair: KeyPair
+    private lateinit var userId: String
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
@@ -80,6 +82,7 @@ class ConnectActivity : AppCompatActivity() {
     private var appState: APP_STATE = APP_STATE.NORMAL
     private var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
 
+    @SuppressLint("HardwareIds")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_connect)
@@ -105,6 +108,7 @@ class ConnectActivity : AppCompatActivity() {
             useOutputEncryption = false
             useInputDecryption = false
         }
+        userId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
 
         appState = APP_STATE.NORMAL
 
@@ -213,7 +217,7 @@ class ConnectActivity : AppCompatActivity() {
                         }
                         else -> {
                             nextState = APP_STATE.ID_CHECK
-                            myBluetoothService.write(USER_ID.toByteArray())
+                            myBluetoothService.write(userId.toByteArray())
                         }
                     }
                 } else {
@@ -306,7 +310,10 @@ class ConnectActivity : AppCompatActivity() {
                 binding.chatField.text = confirmationStr
 
                 nextState = when (userRequest) {
-                    USER_REQUEST.REGISTER_PHONE -> APP_STATE.REGISTER
+                    USER_REQUEST.REGISTER_PHONE -> {
+                        myBluetoothService.write(userId.toByteArray())
+                        APP_STATE.REGISTER
+                    }
                     else -> APP_STATE.NORMAL
                 }
             }
