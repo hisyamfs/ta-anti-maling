@@ -108,7 +108,7 @@ class ConnectActivity : AppCompatActivity() {
             useOutputEncryption = false
             useInputDecryption = false
         }
-        userId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+        userId = Settings.Secure.getString(contentResolver, "bluetooth_address")
 
         appState = APP_STATE.NORMAL
 

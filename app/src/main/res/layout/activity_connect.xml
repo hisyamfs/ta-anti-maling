@@ -136,10 +136,10 @@
             android:text="@string/default_chat"
             tools:text="@string/loremipsum"
             android:layout_gravity="start"
-            android:textAlignment="viewStart"
             android:layout_margin="8dp"
             android:textSize="16sp"
             android:scrollbars="vertical"
+            android:gravity="bottom"
             />
     </LinearLayout>
 </layout>
