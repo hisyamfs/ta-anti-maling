@@ -61,7 +61,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/hash_reply"
                 android:layout_margin="8dp"
-                android:layout_gravity="center_horizontal" />
+                android:layout_gravity="center_horizontal"
+                android:visibility="gone"/>
 
             <Button
                 android:id="@+id/toggleEncryptionButton"

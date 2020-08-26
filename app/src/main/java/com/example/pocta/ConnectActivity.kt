@@ -124,19 +124,6 @@ class ConnectActivity : AppCompatActivity() {
         stateMachine.onBTInput(incomingBytes, msg.arg1)
     }
 
-    private fun sendKey() {
-        val encodedKey = Base64.encodeToString(myKey.encoded, Base64.DEFAULT)
-        stateMachine.onUserInput(encodedKey.toByteArray())
-    }
-
-    private fun sendRSAPubKey() {
-        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
-        val publicKeyBottom = "-----END PUBLIC KEY-----"
-        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
-        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
-        stateMachine.onUserInput(publicKeyString.toByteArray())
-    }
-
     private fun sendRegistrationRequest() {
         stateMachine.userRequest = USER_REQUEST.REGISTER_PHONE
         stateMachine.onUserRequest()
@@ -148,7 +135,7 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     private fun sendUnlockRequest() {
-        stateMachine.userRequest = USER_REQUEST.REGISTER_PHONE
+        stateMachine.userRequest = USER_REQUEST.UNLOCK
         stateMachine.onUserRequest()
     }
 
@@ -163,6 +150,19 @@ class ConnectActivity : AppCompatActivity() {
     private fun sendMessage() {
         val userInput = binding.userInput.text.toString()
         stateMachine.onUserInput(userInput.toByteArray())
+    }
+
+    private fun sendKey() {
+        val encodedKey = Base64.encodeToString(myKey.encoded, Base64.DEFAULT)
+        stateMachine.onUserInput(encodedKey.toByteArray())
+    }
+
+    private fun sendRSAPubKey() {
+        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
+        val publicKeyBottom = "-----END PUBLIC KEY-----"
+        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
+        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
+        stateMachine.onUserInput(publicKeyString.toByteArray())
     }
 
     private fun resetKeys() {
