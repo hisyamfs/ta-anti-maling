@@ -18,6 +18,8 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import com.example.pocta.MyBluetoothService.Companion.CONNECTION_LOST
+import com.example.pocta.MyBluetoothService.Companion.CONNECTION_START
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_WRITE
 import com.example.pocta.MyBluetoothService.Companion.uuid
@@ -43,7 +45,7 @@ class ConnectActivity : AppCompatActivity() {
 
     // TODO("Buat agar kunci enkripsi/dekripsi disimpan di Android KeyStore")
     // Kunci AES default
-    private val defaultKeyString = "YWJjZGVmZ2hpamtsbW5vcA=="
+    private val defaultKeyString = "abcdefghijklmnop"
 
     companion object {
         const val KEY_ALIAS = "keyaliashisyamAES"
@@ -66,7 +68,7 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this, myHandler)
-        myKey = getStoredKey()
+        myKey = getDefaultSymmetricKey() // TODO("Ganti dari pakai kunci default jadi pakai kunci tersimpan")
         hpRSAKeyPair = if (hasMarshmallow()) {
             createAsymmetricKeyPair()
             getAsymmetricKeyPair()!!
@@ -93,6 +95,7 @@ class ConnectActivity : AppCompatActivity() {
             changeUserPinButton.setOnClickListener { sendPinChangeRequest() }
             keyExchangeButton.setOnClickListener { sendKey() }
             phoneRegistrationButton.setOnClickListener { sendRegistrationRequest() }
+            removePhoneButton.setOnClickListener { sendDeleteRequest() }
 
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
@@ -110,6 +113,8 @@ class ConnectActivity : AppCompatActivity() {
             when (msg.what) {
                 MESSAGE_READ -> processBTInput(msg)
                 MESSAGE_WRITE -> processBTOutput(msg)
+                CONNECTION_LOST -> stateMachine.onBTDisconnect()
+                CONNECTION_START -> stateMachine.onBTConnection()
             }
         }
     }
@@ -124,21 +129,10 @@ class ConnectActivity : AppCompatActivity() {
         stateMachine.onBTInput(incomingBytes, msg.arg1)
     }
 
-    private fun sendRegistrationRequest() {
-        stateMachine.userRequest = USER_REQUEST.REGISTER_PHONE
-        stateMachine.onUserRequest()
-    }
-
-    private fun sendPinChangeRequest() {
-        stateMachine.userRequest = USER_REQUEST.CHANGE_PIN
-        stateMachine.onUserRequest()
-    }
-
-    private fun sendUnlockRequest() {
-        stateMachine.userRequest = USER_REQUEST.UNLOCK
-        stateMachine.onUserRequest()
-    }
-
+    private fun sendRegistrationRequest() = stateMachine.onUserRequest(USER_REQUEST.REGISTER_PHONE)
+    private fun sendPinChangeRequest() = stateMachine.onUserRequest(USER_REQUEST.CHANGE_PIN)
+    private fun sendUnlockRequest() = stateMachine.onUserRequest(USER_REQUEST.UNLOCK)
+    private fun sendDeleteRequest() = stateMachine.onUserRequest(USER_REQUEST.REMOVE_PHONE)
     private fun toggleDecryption() = stateMachine.toggleDecryption()
     private fun toggleEncryption() = stateMachine.toggleEncryption()
     private fun disconnectFromDevice() = myBluetoothService.stop()

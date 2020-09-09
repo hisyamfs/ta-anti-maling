@@ -17,18 +17,21 @@ enum class USER_REQUEST(val reqString: String) {
 }
 
 class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: TextView) {
+    val ERR = '2'
     val ACK = "1"
     val NACK = "0"
     // TODO("Ganti agar menggunakan nilai dari MyBluetoothService")
     var userId = "test"
-//    val userId = Settings.Secure.getString(contentResolver,"bluetooth_address")
+    //    val userId = Settings.Secure.getString(contentResolver,"bluetooth_address")
     var deviceName = "Device_PH"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
+
     init {
         bt.useInputDecryption = false
         bt.useOutputEncryption = false
     }
-    private var appState: PhoneState = NormalState(this)
+
+    private var appState: PhoneState = DisconnectState(this)
 
     /* Handle state transition */
     fun changeState(state: PhoneState) {
@@ -37,8 +40,13 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
 
     /* UI and Bluetooth handler delegate to active state */
     fun onBTInput(bytes: ByteArray, len: Int) = appState.onBTInput(bytes, len)
+
     fun onBTOutput(bytes: ByteArray) = appState.onBTOutput(bytes)
-    fun onUserRequest() = appState.onUserRequest()
+    fun onUserRequest(req: USER_REQUEST) {
+        userRequest = req
+        appState.onUserRequest()
+    }
+
     fun onUserInput(bytes: ByteArray) = appState.onUserInput(bytes)
     fun onBTConnection() = appState.onBTConnection()
     fun onBTDisconnect() = appState.onBTDisconnect()
@@ -100,132 +108,95 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
     }
 }
 
-abstract class PhoneState(val sm: PhoneStateMachine) {
-    abstract fun onBTInput(bytes: ByteArray, len: Int)
-    abstract fun onBTOutput(bytes: ByteArray)
-    abstract fun onUserRequest()
-    abstract fun onUserInput(bytes: ByteArray)
-    abstract fun onBTConnection()
-    abstract fun onBTDisconnect()
-}
-
-class NormalState(sm: PhoneStateMachine) : PhoneState(sm) {
-    override fun onBTInput(bytes: ByteArray, len: Int) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+open class PhoneState(val sm: PhoneStateMachine) {
+    open fun onBTInput(bytes: ByteArray, len: Int) {}
+    open fun onBTOutput(bytes: ByteArray) {
         val outgoingMessage = String(bytes)
         sm.updateUI("You : $outgoingMessage")
     }
 
-    override fun onUserRequest() {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        sm.sendData(sm.userRequest.reqString.toByteArray())
-        sm.changeState(RequestState(sm))
-    }
+    open fun onUserRequest() {}
+    open fun onUserInput(bytes: ByteArray) {}
 
-    override fun onUserInput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        sm.sendData(bytes)
-    }
-
-    override fun onBTConnection() {
+    open fun onBTConnection() {
         sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
     }
 
-    override fun onBTDisconnect() {
+    open fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
     }
 }
 
-class RequestState(sm: PhoneStateMachine): PhoneState(sm) {
+class DisconnectState(sm: PhoneStateMachine) : PhoneState(sm) {
+    override fun onBTConnection() {
+        super.onBTConnection()
+        sm.updateUI("To ConnectState")
+        sm.changeState(ConnectState(sm))
+    }
+
+    override fun onBTDisconnect() {
+        sm.changeState(DisconnectState(sm))
+    }
+}
+
+class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
-            sm.sendData(sm.userId.toByteArray())
-            sm.changeState(IdCheckState(sm))
+            sm.updateUI("To RequestState")
+            sm.changeState(RequestState(sm))
         } else {
-            sm.updateUI("Request unrecognized or unimplemented")
-            sm.changeState(NormalState(sm))
+            sm.updateUI("HP anda tidak dikenal/belum terdaftar")
+            // TODO("Lakukan penghapusan alamat device dari HP")
+            sm.changeState(DisconnectState(sm))
         }
     }
 
-    override fun onBTOutput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
-
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        super.onBTDisconnect()
+        sm.updateUI("To DisconnectState")
+        sm.changeState(DisconnectState(sm))
     }
 }
 
-class IdCheckState(sm: PhoneStateMachine): PhoneState(sm) {
+class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
+            sm.updateUI("To ChallengeState")
             sm.changeState(ChallengeState(sm))
         } else {
-            sm.updateUI("User ID not found")
-            sm.changeState(NormalState(sm))
+            sm.updateUI("Request tidak dikenal atau belum diimplementasi")
         }
     }
 
     override fun onBTOutput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         val outgoingMessage = String(bytes)
         sm.updateUI("You : $outgoingMessage")
     }
 
     override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        val reqBytes = sm.userRequest.reqString.toByteArray()
+        sm.sendData(reqBytes)
     }
 
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
+    override fun onUserInput(bytes: ByteArray) = sm.sendData(bytes)
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        super.onBTDisconnect()
+        sm.updateUI("To DisconnectState")
+        sm.changeState(DisconnectState(sm))
     }
 }
 
-class ChallengeState(sm: PhoneStateMachine): PhoneState(sm) {
+class ChallengeState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = Base64.encodeToString(bytes, Base64.DEFAULT)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         sm.sendEncryptedData(bytes)
+        sm.updateUI("To response state")
         sm.changeState(ResponseState(sm))
     }
 
@@ -234,67 +205,34 @@ class ChallengeState(sm: PhoneStateMachine): PhoneState(sm) {
         sm.updateUI("You : $outgoingMessage")
     }
 
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
-
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        super.onBTDisconnect()
+        sm.changeState(DisconnectState(sm))
     }
 }
 
-class ResponseState(sm: PhoneStateMachine): PhoneState(sm) {
+class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
             sm.promptUserInput("Masukkan password anda!")
+            sm.updateUI("To pin state")
             sm.changeState(PinState(sm))
         } else {
-            sm.updateUI("HP anda tidak dikenal")
-            sm.changeState(NormalState(sm))
+            sm.updateUI("HP anda tidak dikenal\nTo AlarmState")
+            sm.changeState(AlarmState(sm))
         }
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
     }
 
     override fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        sm.changeState(DisconnectState(sm))
     }
 }
 
-class PinState(sm: PhoneStateMachine): PhoneState(sm) {
+class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
@@ -304,81 +242,50 @@ class PinState(sm: PhoneStateMachine): PhoneState(sm) {
                     sm.disableEncryption()
                     sm.changeState(UnlockState(sm))
                 }
-                USER_REQUEST.REGISTER_PHONE, USER_REQUEST.CHANGE_PIN -> {
+                USER_REQUEST.CHANGE_PIN -> {
                     sm.enableEncryption()
                     sm.promptUserInput("Masukkan password baru anda!")
                     sm.changeState(NewPinState(sm))
                 }
+                USER_REQUEST.REMOVE_PHONE -> {
+                    sm.disableEncryption()
+                    sm.changeState(DeleteState(sm))
+                }
                 else -> {
                     sm.disableEncryption()
-                    sm.changeState(NormalState(sm))
+                    sm.changeState(RequestState(sm))
                 }
             }
         } else {
             sm.updateUI("Password anda salah")
-            sm.changeState(NormalState(sm))
+            sm.changeState(AlarmState(sm))
         }
     }
 
-    override fun onBTOutput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
     override fun onUserInput(bytes: ByteArray) {
+        super.onUserInput(bytes)
         sm.sendEncryptedData(bytes)
     }
 
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
+    override fun onBTDisconnect() {
+        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.changeState(DisconnectState(sm))
+    }
+}
+
+class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
+    override fun onBTInput(bytes: ByteArray, len: Int) {
+        sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        sm.changeState(DisconnectState(sm))
     }
 }
 
-class UnlockState(sm: PhoneStateMachine): PhoneState(sm) {
+class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        sm.changeState(NormalState(sm))
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-//        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
-
-    override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
-}
-
-class NewPinState(sm: PhoneStateMachine): PhoneState(sm) {
-    override fun onBTInput(bytes: ByteArray, len: Int) {
-        sm.disableEncryption()
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
@@ -386,116 +293,67 @@ class NewPinState(sm: PhoneStateMachine): PhoneState(sm) {
         } else {
             sm.updateUI("Password gagal didaftarkan")
         }
-        sm.changeState(NormalState(sm))
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-        val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        sm.changeState(RequestState(sm))
     }
 
     override fun onUserInput(bytes: ByteArray) {
+        super.onUserInput(bytes)
         sm.sendEncryptedData(bytes)
     }
 
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
-
     override fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        sm.changeState(DisconnectState(sm))
     }
 }
 
-class AlarmState(sm: PhoneStateMachine): PhoneState(sm) {
+class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        val incomingMessage = String(bytes, 0, len)
+        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        if (incomingMessage == sm.ACK) {
+            // TODO("Lakukan penghapusan akun terdaftar di HP juga")
+            sm.updateUI("Akun berhasil dihapus!")
+        } else {
+            sm.updateUI("Akun gagal dihapus!")
+        }
+        sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        super.onBTDisconnect()
+        sm.changeState(DisconnectState(sm))
     }
-
 }
 
-class KeyExchangeState(sm: PhoneStateMachine): PhoneState(sm) {
+class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        val incomingMessage = String(bytes, 0, len)
+        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        if (incomingMessage == sm.ACK) {
+            sm.updateUI("To RequestState")
+            sm.changeState(RequestState(sm))
+        }
     }
 
     override fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        sm.updateUI("To DisconnectState")
+        sm.changeState(DisconnectState(sm))
     }
-
 }
 
-class RegisterState(sm: PhoneStateMachine): PhoneState(sm) {
-    override fun onBTInput(bytes: ByteArray, len: Int) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTOutput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserRequest() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun onBTConnection() {
-        sm.updateUI(BT_CONNECT_MSG)
-        sm.changeState(NormalState(sm))
-    }
-
+class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
-        sm.changeState(NormalState(sm))
+        sm.changeState(DisconnectState(sm))
+    }
+}
+
+class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
+    override fun onBTDisconnect() {
+        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.changeState(DisconnectState(sm))
     }
 
 }

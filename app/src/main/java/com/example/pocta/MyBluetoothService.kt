@@ -51,6 +51,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
         const val MESSAGE_WRITE: Int = 1
         const val MESSAGE_TOAST: Int = 2
         const val MESSAGE_DEVICE_NAME: Int = 3
+        const val CONNECTION_START: Int = 4
+        const val CONNECTION_LOST: Int = 5
     }
 
     init {
@@ -104,6 +106,9 @@ class MyBluetoothService(context: Context, handler: Handler) {
             btAcceptThread?.cancel()
             btAcceptThread = null
         }
+
+        btHandler?.obtainMessage(CONNECTION_LOST)
+            ?.sendToTarget()
         btState = STATE_NONE
     }
 
@@ -312,7 +317,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
         override fun run() {
             var numBytes: Int
             val mmBuffer = ByteArray(256)
-
+            btHandler?.obtainMessage(CONNECTION_START)
+                ?.sendToTarget()
             while (true) {
                 try {
                     if (mmInStream != null) {
@@ -340,6 +346,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
                     }
                 } catch (e: IOException) {
                     Log.e(TAG, "connected thread: error reading in stream", e)
+                    btHandler?.obtainMessage(CONNECTION_LOST)
+                        ?.sendToTarget()
                     break
                 }
             }
@@ -365,8 +373,8 @@ class MyBluetoothService(context: Context, handler: Handler) {
         fun cancel() {
             try {
                 mmSocket?.close()
-            } catch (e: IOException) {
-                Log.e(TAG, "connect thread: cancel: IOException", e)
+            } catch (e: Error) {
+                Log.e(TAG, "connect thread: error", e)
             }
         }
     }
