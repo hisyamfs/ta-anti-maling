@@ -82,12 +82,21 @@
                 android:visibility="gone"/>
 
             <Button
+                android:id="@+id/keyExchangeButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_margin="8dp"
+                android:text="Tukar Kunci" />
+
+            <Button
                 android:id="@+id/toggleDecryptionButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 android:layout_gravity="center_horizontal"
-                android:text="@string/toggle_decryption"/>
+                android:text="@string/toggle_decryption"
+                android:visibility="gone"/>
         </LinearLayout>
 
         <LinearLayout
@@ -111,15 +120,6 @@
                 android:layout_gravity="center_horizontal"
                 android:layout_margin="8dp"
                 android:text="@string/changeUserPinButtonText" />
-
-            <Button
-                android:id="@+id/keyExchangeButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_margin="8dp"
-                android:visibility="gone"
-                android:text="@string/keyExchangeButton" />
 
             <Button
                 android:id="@+id/removePhoneButton"

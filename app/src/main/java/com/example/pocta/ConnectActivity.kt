@@ -93,7 +93,7 @@ class ConnectActivity : AppCompatActivity() {
             toggleDecryptionButton.setOnClickListener { toggleDecryption() }
             unlockDeviceButton.setOnClickListener { sendUnlockRequest() }
             changeUserPinButton.setOnClickListener { sendPinChangeRequest() }
-            keyExchangeButton.setOnClickListener { sendKey() }
+            keyExchangeButton.setOnClickListener { sendRSAPubKey() }
             phoneRegistrationButton.setOnClickListener { sendRegistrationRequest() }
             removePhoneButton.setOnClickListener { sendDeleteRequest() }
 
