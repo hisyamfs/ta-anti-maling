@@ -84,6 +84,7 @@ class ConnectActivity : AppCompatActivity() {
         stateMachine = PhoneStateMachine(myBluetoothService, binding.chatField)
         stateMachine.userId = myUserId
         stateMachine.deviceName = btDevice?.name ?: "Device"
+        stateMachine.setPubKey(hpRSAKeyPair)
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }

@@ -1,8 +1,11 @@
 package com.example.pocta
 
-import android.provider.Settings
 import android.util.Base64
 import android.widget.TextView
+import java.security.KeyPair
+import javax.crypto.Cipher
+import javax.crypto.SecretKey
+import javax.crypto.spec.SecretKeySpec
 
 const val BT_DISCONNECT_MSG = "Saluran Bluetooth terputus."
 const val BT_CONNECT_MSG = "Saluran Bluetooth tersambung"
@@ -25,6 +28,7 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
     //    val userId = Settings.Secure.getString(contentResolver,"bluetooth_address")
     var deviceName = "Device_PH"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
+    var hpRSAKeyPair: KeyPair? = null
 
     init {
         bt.useInputDecryption = false
@@ -40,13 +44,11 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
 
     /* UI and Bluetooth handler delegate to active state */
     fun onBTInput(bytes: ByteArray, len: Int) = appState.onBTInput(bytes, len)
-
     fun onBTOutput(bytes: ByteArray) = appState.onBTOutput(bytes)
     fun onUserRequest(req: USER_REQUEST) {
         userRequest = req
         appState.onUserRequest()
     }
-
     fun onUserInput(bytes: ByteArray) = appState.onUserInput(bytes)
     fun onBTConnection() = appState.onBTConnection()
     fun onBTDisconnect() = appState.onBTDisconnect()
@@ -54,20 +56,17 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
     /* Common methods for all states */
     // send unencrypted data to the device
     fun sendData(bytes: ByteArray) {
-//         TODO("Not Implemented")
         disableEncryption()
         bt.write(bytes)
     }
 
     fun sendEncryptedData(bytes: ByteArray) {
-//         TODO("Not Implemented")
         enableEncryption()
         bt.write(bytes)
         disableEncryption()
     }
 
     fun updateUI(str: String) {
-//        TODO("Not Implemented")
         val textUpdate = "${ui.text}\n$str"
         ui.text = textUpdate
     }
@@ -105,6 +104,43 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
     fun toggleDecryption() {
         if (bt.useInputDecryption) disableDecryption()
         else enableDecryption()
+    }
+
+    fun setPubKey(kp: KeyPair) {
+        hpRSAKeyPair = kp
+    }
+    fun setMyAESKey(myKey: SecretKey) = bt.setAESKey(myKey)
+
+    fun sendRSAPubKey() {
+        val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
+        val publicKeyBottom = "-----END PUBLIC KEY-----"
+        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair?.public?.encoded, Base64.DEFAULT)
+        val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
+        sendData(publicKeyString.toByteArray())
+    }
+
+    fun decryptSecretKey(bytes: ByteArray): SecretKey {
+        var secretKeyByteArray: ByteArray
+        val defaultKeyString = "abcdefghijklmnop"
+        secretKeyByteArray = if (hpRSAKeyPair?.private != null) {
+            try {
+                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                cipher.init(Cipher.DECRYPT_MODE, hpRSAKeyPair?.private)
+                cipher.doFinal(bytes)
+            } catch (e: Exception) {
+                defaultKeyString.toByteArray()
+            }
+        } else {
+            defaultKeyString.toByteArray()
+        }
+        if (secretKeyByteArray.size != 16) secretKeyByteArray = defaultKeyString.toByteArray()
+
+        val b64key = Base64.encodeToString(secretKeyByteArray, Base64.DEFAULT)
+        val keyString = secretKeyByteArray.toString()
+        val keyPrint = "Secret Key: \n$keyString \n$b64key"
+        updateUI(keyPrint)
+
+        return SecretKeySpec(secretKeyByteArray, "AES")
     }
 }
 
@@ -165,8 +201,14 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
-            sm.updateUI("To ChallengeState")
-            sm.changeState(ChallengeState(sm))
+            if (sm.userRequest == USER_REQUEST.REGISTER_PHONE) {
+                sm.updateUI("To KeyExchangeState")
+                sm.sendRSAPubKey()
+                sm.changeState(KeyExchangeState(sm))
+            } else {
+                sm.updateUI("To ChallengeState")
+                sm.changeState(ChallengeState(sm))
+            }
         } else {
             sm.updateUI("Request tidak dikenal atau belum diimplementasi")
         }
@@ -344,8 +386,35 @@ class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
 }
 
 class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
+    override fun onBTInput(bytes: ByteArray, len: Int) {
+        super.onBTInput(bytes, len)
+        val incomingMessage = String(bytes, 0, len)
+        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        when (incomingMessage) {
+            sm.ACK -> {
+                // Kunci berhasil didaftarkan, masukkan PIN baru
+                sm.enableEncryption()
+                sm.promptUserInput("Masukkan password baru anda!")
+                sm.updateUI("To NewPinState")
+                sm.changeState(NewPinState(sm))
+            }
+            sm.NACK -> {
+                // Pertukaran kunci gagal
+                sm.updateUI("To RequestState")
+                sm.changeState(RequestState(sm))
+            }
+            else -> {
+                // Dekripsi kunci dari device dan load
+                val myKey: SecretKey = sm.decryptSecretKey(bytes)
+                sm.disableEncryption()
+                sm.disableDecryption()
+                sm.setMyAESKey(myKey)
+            }
+        }
+    }
+
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        super.onBTDisconnect()
         sm.changeState(DisconnectState(sm))
     }
 }

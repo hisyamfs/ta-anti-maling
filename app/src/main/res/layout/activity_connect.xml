@@ -87,7 +87,16 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_margin="8dp"
-                android:text="Tukar Kunci" />
+                android:text="Tukar Kunci"
+                android:visibility="gone"/>
+
+            <Button
+                android:id="@+id/phoneRegistrationButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:layout_gravity="center_horizontal"
+                android:text="Daftar HP" />
 
             <Button
                 android:id="@+id/toggleDecryptionButton"
@@ -128,15 +137,6 @@
                 android:layout_margin="8dp"
                 android:layout_gravity="center_horizontal"
                 android:text="Hapus Akun" />
-
-            <Button
-                android:id="@+id/phoneRegistrationButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:layout_gravity="center_horizontal"
-                android:text="Daftarkan HP"
-                android:visibility="gone"/>
         </LinearLayout>
 
         <TextView
