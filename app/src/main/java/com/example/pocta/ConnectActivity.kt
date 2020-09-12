@@ -68,7 +68,7 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this, myHandler)
-        myKey = getDefaultSymmetricKey() // TODO("Ganti dari pakai kunci default jadi pakai kunci tersimpan")
+        myKey = getStoredKey() // TODO("Ganti dari pakai kunci default jadi pakai kunci tersimpan")
         hpRSAKeyPair = if (hasMarshmallow()) {
             createAsymmetricKeyPair()
             getAsymmetricKeyPair()!!
@@ -81,7 +81,7 @@ class ConnectActivity : AppCompatActivity() {
             useInputDecryption = false
         }
         myUserId = Settings.Secure.getString(contentResolver, "bluetooth_address")
-        stateMachine = PhoneStateMachine(myBluetoothService, binding.chatField)
+        stateMachine = PhoneStateMachine(myBluetoothService, binding.chatField, this@ConnectActivity)
         stateMachine.userId = myUserId
         stateMachine.deviceName = btDevice?.name ?: "Device"
         stateMachine.setPubKey(hpRSAKeyPair)
@@ -313,8 +313,12 @@ class ConnectActivity : AppCompatActivity() {
         val cipherKeyStr = getSharedPreferences("PREFS", 0)
             .getString("CIPHERKEY", defaultKeyString)
             ?: defaultKeyString
-        val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
-        return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
+        if (cipherKeyStr == defaultKeyString) {
+            return getDefaultSymmetricKey()
+        } else {
+            val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
+            return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
+        }
     }
 
     // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
