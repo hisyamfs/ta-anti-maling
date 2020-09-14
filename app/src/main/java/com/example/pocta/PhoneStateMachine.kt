@@ -21,20 +21,25 @@ enum class USER_REQUEST(val reqString: String) {
     DISABLE("!5")
 }
 
-class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: TextView, private val ctx: Context) {
+class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: TextView, private val cm: MyCredentialManager) {
     val ERR = '2'
     val ACK = "1"
     val NACK = "0"
-    // TODO("Ganti agar menggunakan nilai dari MyBluetoothService")
-    var userId = "test"
-    //    val userId = Settings.Secure.getString(contentResolver,"bluetooth_address")
     var deviceName = "Device_PH"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
-    var hpRSAKeyPair: KeyPair? = null
+    private var hpRSAKeyPair: KeyPair? = null
+    private var myKey: SecretKey? = null
 
     init {
         bt.useInputDecryption = false
         bt.useOutputEncryption = false
+        myKey = cm.getStoredKey()
+        hpRSAKeyPair = cm.getStoredRSAKeyPair()
+        bt.apply {
+            setAESKey(myKey!!)
+            useOutputEncryption = false
+            useInputDecryption = false
+        }
     }
 
     private var appState: PhoneState = DisconnectState(this)
@@ -114,11 +119,7 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
     }
 
     fun setMyAESKey(myKey: SecretKey) {
-        val newKeyStr = Base64.encodeToString(myKey.encoded, Base64.DEFAULT)
-        val editor = ctx.getSharedPreferences("PREFS", 0)
-                .edit()
-                .putString("CIPHERKEY", newKeyStr)
-                .apply()
+        cm.setStoredKey(myKey)
         bt.setAESKey(myKey)
     }
 

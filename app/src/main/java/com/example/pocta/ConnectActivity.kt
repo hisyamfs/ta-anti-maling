@@ -34,23 +34,16 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
     private lateinit var myAddress: String
     private lateinit var myBluetoothService: MyBluetoothService
+    private lateinit var credentialManager: MyCredentialManager
     private lateinit var stateMachine: PhoneStateMachine
     private lateinit var myKey: SecretKey
     private lateinit var incomingBytes: ByteArray
     private lateinit var hpRSAKeyPair: KeyPair
-    private lateinit var myUserId: String
     private var btDevice: BluetoothDevice? = null
     private var btAdapter: BluetoothAdapter? = null
     private val tag = "ConnectActivity"
 
-    // TODO("Buat agar kunci enkripsi/dekripsi disimpan di Android KeyStore")
-    // Kunci AES default
-    private val defaultKeyString = "abcdefghijklmnop"
-
     companion object {
-        const val KEY_ALIAS = "keyaliashisyamAES"
-        const val KEY_ALIAS_DEF = "keyaliascobaAES"
-        const val USE_DEF_KEY = true
         const val lt = "ConnectActivity"
     }
 
@@ -68,23 +61,9 @@ class ConnectActivity : AppCompatActivity() {
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         myBluetoothService = MyBluetoothService(this, myHandler)
-        myKey = getStoredKey() // TODO("Ganti dari pakai kunci default jadi pakai kunci tersimpan")
-        hpRSAKeyPair = if (hasMarshmallow()) {
-            createAsymmetricKeyPair()
-            getAsymmetricKeyPair()!!
-        } else {
-            createAsymmetricKeyPair()
-        }
-        myBluetoothService.apply {
-            setAESKey(myKey)
-            useOutputEncryption = false
-            useInputDecryption = false
-        }
-        myUserId = Settings.Secure.getString(contentResolver, "bluetooth_address")
-        stateMachine = PhoneStateMachine(myBluetoothService, binding.chatField, this@ConnectActivity)
-        stateMachine.userId = myUserId
+        credentialManager = MyCredentialManager(this)
+        stateMachine = PhoneStateMachine(myBluetoothService, binding.chatField, credentialManager)
         stateMachine.deviceName = btDevice?.name ?: "Device"
-        stateMachine.setPubKey(hpRSAKeyPair)
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -104,7 +83,7 @@ class ConnectActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        if (::myKey.isInitialized) removeKeyStore()
+        if (::myKey.isInitialized) credentialManager.removeKeyStore()
         super.onDestroy()
     }
 
@@ -158,179 +137,6 @@ class ConnectActivity : AppCompatActivity() {
         val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public.encoded, Base64.DEFAULT)
         val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
         stateMachine.onUserInput(publicKeyString.toByteArray())
-    }
-
-    private fun resetKeys() {
-        removeKeyStore()
-        myKey = if (USE_DEF_KEY) {
-            getDefaultSymmetricKey()
-        } else {
-            getSymmetricKey()
-        }
-    }
-
-
-    // TODO("Masih banyak voodoonya")
-    private fun getSymmetricKey(): SecretKey {
-        return if (hasMarshmallow()) {
-            val ks = createKeyStore()
-            if (!isKeyExists(ks)) {
-                createSymmetricKey()
-            }
-            ks.getKey(KEY_ALIAS, null) as SecretKey
-        } else {
-            val keyGenerator = KeyGenerator.getInstance("AES")
-            keyGenerator.init(128)
-            keyGenerator.generateKey()
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.M)
-    private fun createSymmetricKey(): SecretKey {
-        try {
-            val keygen =
-                KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-            val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-                .setKeySize(128)
-                .build()
-            keygen.init(keyGenParameterSpec)
-            return keygen.generateKey()
-        } catch (e: NoSuchAlgorithmException) {
-            Log.e(lt, "Failed to create a symmetric key", e)
-            return getDefaultSymmetricKey()
-        } catch (e: NoSuchProviderException) {
-            Log.e(lt, "Failed to create a symmetric key", e)
-            return getDefaultSymmetricKey()
-        } catch (e: InvalidAlgorithmParameterException) {
-            Log.e(lt, "Failed to create a symmetric key", e)
-            return getDefaultSymmetricKey()
-        }
-    }
-
-    private fun removeKeyStore() {
-        val ks = createKeyStore()
-        Log.i(lt, "ConnectActivity: removing secret key.")
-        ks.deleteEntry(KEY_ALIAS)
-    }
-
-    private fun isKeyExists(ks: KeyStore): Boolean {
-        val aliases = ks.aliases()
-        while (aliases.hasMoreElements()) {
-            return (KEY_ALIAS == aliases.nextElement())
-        }
-        return false
-    }
-
-    private fun createKeyStore(): KeyStore {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore")
-        keyStore.load(null)
-        return keyStore
-    }
-
-    private fun getDefaultSymmetricKey(): SecretKey {
-        val secretKeyByteArray = defaultKeyString.toByteArray()
-        return SecretKeySpec(secretKeyByteArray, "AES")
-    }
-
-    private fun createAsymmetricKeyPair(): KeyPair {
-        val generator: KeyPairGenerator
-
-        if (hasMarshmallow()) {
-            generator =
-                KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
-            getKeyGenParameterSpec(generator)
-        } else {
-            generator = KeyPairGenerator.getInstance("RSA")
-            generator.initialize(2048)
-        }
-
-        return generator.generateKeyPair()
-    }
-
-    @TargetApi(23)
-    private fun getKeyGenParameterSpec(generator: KeyPairGenerator) {
-        val builder = KeyGenParameterSpec.Builder(
-            KEY_ALIAS,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
-            //.setUserAuthenticationRequired(true)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
-
-        generator.initialize(builder.build())
-    }
-
-    private fun getAsymmetricKeyPair(): KeyPair? {
-        val keyStore: KeyStore = createKeyStore()
-
-        val alias: String = if (USE_DEF_KEY) {
-            KEY_ALIAS_DEF
-        } else {
-            KEY_ALIAS
-        }
-
-        val privateKey = keyStore.getKey(alias, null) as PrivateKey?
-        val publicKey = keyStore.getCertificate(alias)?.publicKey
-
-        return if (privateKey != null && publicKey != null) {
-            KeyPair(publicKey, privateKey)
-        } else {
-            null
-        }
-    }
-
-    // TODO("Rapihin")
-    private fun decryptSecretKey(): SecretKey {
-        var secretKeyByteArray: ByteArray
-        secretKeyByteArray = if (hpRSAKeyPair.private != null) {
-            try {
-                val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-                cipher.init(Cipher.DECRYPT_MODE, hpRSAKeyPair.private)
-                cipher.doFinal(incomingBytes)
-            } catch (e: Exception) {
-                defaultKeyString.toByteArray()
-            }
-        } else {
-            defaultKeyString.toByteArray()
-        }
-        if (secretKeyByteArray.size != 16) secretKeyByteArray = defaultKeyString.toByteArray()
-
-        val b64key = Base64.encodeToString(secretKeyByteArray, Base64.DEFAULT)
-        val keyString = secretKeyByteArray.toString()
-        val keyPrint = "${binding.chatField.text}\nSecret Key: \n$keyString \n$b64key"
-        binding.chatField.text = keyPrint
-
-        return SecretKeySpec(secretKeyByteArray, "AES")
-    }
-
-    // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
-    private fun getStoredKey(): SecretKey {
-        val cipherKeyStr = getSharedPreferences("PREFS", 0)
-            .getString("CIPHERKEY", defaultKeyString)
-            ?: defaultKeyString
-        if (cipherKeyStr == defaultKeyString) {
-            return getDefaultSymmetricKey()
-        } else {
-            val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
-            return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
-        }
-    }
-
-    // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
-    private fun setStoredKey(newKey: SecretKey?) {
-        if (newKey != null) {
-            val newKeyStr = Base64.encodeToString(newKey.encoded, Base64.DEFAULT)
-            val editor =
-                getSharedPreferences("PREFS", 0)
-                    .edit()
-                    .putString("CIPHERKEY", newKeyStr)
-                    .apply()
-        }
     }
 }
 

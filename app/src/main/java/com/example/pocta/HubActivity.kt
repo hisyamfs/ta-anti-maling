@@ -40,9 +40,6 @@ class HubActivity : AppCompatActivity() {
                 refreshListButton.setOnClickListener { listPairedDevices(it) }
             }
         }
-        binding.changePinButton.setOnClickListener {
-            changePin(it)
-        }
     }
 
     private fun enableBluetooth(it: View?) {
@@ -97,10 +94,5 @@ class HubActivity : AppCompatActivity() {
         } else {
             Toast.makeText(this, "Please turn on Bluetooth first", Toast.LENGTH_LONG).show()
         }
-    }
-
-    private fun changePin(it: View?) {
-        val toActivity = Intent(this, ChangePinActivity::class.java)
-        startActivity(toActivity)
     }
 }
