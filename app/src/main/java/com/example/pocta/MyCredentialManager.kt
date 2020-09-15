@@ -6,79 +6,18 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import android.util.Log
-import androidx.annotation.RequiresApi
-import java.lang.Exception
-import java.security.*
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.PrivateKey
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
 class MyCredentialManager(private val context: Context) {
-    private val defaultKeyString = "abcdefghijklmnop"
+    private var db: ImmobilizerDatabase? = ImmobilizerDatabase.getDatabase(context)
     companion object {
-        const val KEY_ALIAS = "DebugImmoblizerAESKey"
-        const val KEY_ALIAS_DEF = "ImmobilizerAESKey"
+        const val KEY_ALIAS = "ImmobilizerAESKey"
         const val TAG = "MyCredentialManager"
-    }
-
-    fun resetKey() = removeKeyStore()
-
-    // TODO("Masih banyak voodoonya")
-    fun getSymmetricKey(): SecretKey {
-        return if (hasMarshmallow()) {
-            val ks = createKeyStore()
-            if (!isKeyExists(ks)) {
-                createSymmetricKey()
-            }
-            ks.getKey(KEY_ALIAS, null) as SecretKey
-        } else {
-            val keyGenerator = KeyGenerator.getInstance("AES")
-            keyGenerator.init(128)
-            keyGenerator.generateKey()
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.M)
-    private fun createSymmetricKey(): SecretKey {
-        try {
-            val keygen =
-                KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-            val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-                .setKeySize(128)
-                .build()
-            keygen.init(keyGenParameterSpec)
-            return keygen.generateKey()
-        } catch (e: NoSuchAlgorithmException) {
-            Log.e(TAG, "Failed to create a symmetric key", e)
-            return getDefaultSymmetricKey()
-        } catch (e: NoSuchProviderException) {
-            Log.e(TAG, "Failed to create a symmetric key", e)
-            return getDefaultSymmetricKey()
-        } catch (e: InvalidAlgorithmParameterException) {
-            Log.e(TAG, "Failed to create a symmetric key", e)
-            return getDefaultSymmetricKey()
-        }
-    }
-
-    fun removeKeyStore() {
-        val ks = createKeyStore()
-        Log.i(ConnectActivity.lt, "ConnectActivity: removing secret key.")
-        ks.deleteEntry(KEY_ALIAS)
-    }
-
-    private fun isKeyExists(ks: KeyStore): Boolean {
-        val aliases = ks.aliases()
-        while (aliases.hasMoreElements()) {
-            return (KEY_ALIAS == aliases.nextElement())
-        }
-        return false
     }
 
     private fun createKeyStore(): KeyStore {
@@ -88,7 +27,7 @@ class MyCredentialManager(private val context: Context) {
     }
 
     private fun getDefaultSymmetricKey(): SecretKey {
-        val secretKeyByteArray = defaultKeyString.toByteArray()
+        val secretKeyByteArray = ByteArray(16) { _ -> 0} // 16-byte array of zeroes
         return SecretKeySpec(secretKeyByteArray, "AES")
     }
 
@@ -133,27 +72,38 @@ class MyCredentialManager(private val context: Context) {
     }
 
     // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
-    fun getStoredKey(): SecretKey {
-        val cipherKeyStr = context.getSharedPreferences("PREFS", 0)
-            .getString("CIPHERKEY", defaultKeyString)
-            ?: defaultKeyString
-        if (cipherKeyStr == defaultKeyString) {
-            return getDefaultSymmetricKey()
-        } else {
+    fun getStoredKey(immobilizerAddress: String): SecretKey {
+//        val cipherKeyStr = context.getSharedPreferences("PREFS", 0)
+//            .getString("CIPHERKEY", defaultKeyString)
+//            ?: defaultKeyString
+//        if (cipherKeyStr == defaultKeyString) {
+//            return getDefaultSymmetricKey()
+//        } else {
+//            val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
+//            return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
+//        }
+        val immobilizer = db?.immobilizerDao()?.getByAddress(immobilizerAddress)
+        val cipherKeyStr = immobilizer?.cipherKey
+        return if (cipherKeyStr != null) {
             val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
-            return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
+            SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
+        } else {
+            getDefaultSymmetricKey()
         }
     }
 
     // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
-    fun setStoredKey(newKey: SecretKey?) {
-        if (newKey != null) {
-            val newKeyStr = Base64.encodeToString(newKey.encoded, Base64.DEFAULT)
-            val editor = context.getSharedPreferences("PREFS", 0)
-                    .edit()
-                    .putString("CIPHERKEY", newKeyStr)
-                    .apply()
-        }
+    fun setStoredKey(immobilizerAddress: String, newKey: SecretKey?) {
+//        if (newKey != null) {
+        val newKeyStr = Base64.encodeToString(newKey!!.encoded, Base64.DEFAULT)
+//            val editor = context.getSharedPreferences("PREFS", 0)
+//                    .edit()
+//                    .putString("CIPHERKEY", newKeyStr)
+//                    .apply()
+        val immobilizer = db?.immobilizerDao()?.getByAddress(immobilizerAddress)
+        immobilizer?.cipherKey = newKeyStr
+        db?.immobilizerDao()?.update(immobilizer!!)
+//        }
     }
 
     fun getStoredRSAKeyPair() : KeyPair {
@@ -164,4 +114,13 @@ class MyCredentialManager(private val context: Context) {
             createAsymmetricKeyPair()
         }
     }
+
+    fun deleteAccount(immobilizerAddress: String) {
+        val immobilizer = db?.immobilizerDao()?.getByAddress(immobilizerAddress)
+        db?.immobilizerDao()?.deleteImmobilizer(immobilizer!!)
+    }
+}
+
+fun hasMarshmallow(): Boolean {
+    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
 }

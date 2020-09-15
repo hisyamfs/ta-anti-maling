@@ -1,21 +1,14 @@
 package com.example.pocta
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Message
-import android.provider.Settings
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import android.text.method.ScrollingMovementMethod
 import android.util.Base64
-import android.util.Log
-import android.widget.Toast
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.example.pocta.MyBluetoothService.Companion.CONNECTION_LOST
@@ -24,11 +17,8 @@ import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_WRITE
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
-import java.lang.Exception
-import java.nio.charset.Charset
-import java.security.*
-import javax.crypto.*
-import javax.crypto.spec.SecretKeySpec
+import java.security.KeyPair
+import javax.crypto.SecretKey
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
@@ -70,10 +60,10 @@ class ConnectActivity : AppCompatActivity() {
             sendMessageButton.setOnClickListener { sendMessage() }
             disconnectButton.setOnClickListener { disconnectFromDevice() }
             toggleEncryptionButton.setOnClickListener { toggleEncryption() }
-            toggleDecryptionButton.setOnClickListener { toggleDecryption() }
+//            toggleDecryptionButton.setOnClickListener { toggleDecryption() }
             unlockDeviceButton.setOnClickListener { sendUnlockRequest() }
             changeUserPinButton.setOnClickListener { sendPinChangeRequest() }
-            keyExchangeButton.setOnClickListener { sendRSAPubKey() }
+//            keyExchangeButton.setOnClickListener { sendRSAPubKey() }
             phoneRegistrationButton.setOnClickListener { sendRegistrationRequest() }
             removePhoneButton.setOnClickListener { sendDeleteRequest() }
 
@@ -113,7 +103,7 @@ class ConnectActivity : AppCompatActivity() {
     private fun sendPinChangeRequest() = stateMachine.onUserRequest(USER_REQUEST.CHANGE_PIN)
     private fun sendUnlockRequest() = stateMachine.onUserRequest(USER_REQUEST.UNLOCK)
     private fun sendDeleteRequest() = stateMachine.onUserRequest(USER_REQUEST.REMOVE_PHONE)
-    private fun toggleDecryption() = stateMachine.toggleDecryption()
+//    private fun toggleDecryption() = stateMachine.toggleDecryption()
     private fun toggleEncryption() = stateMachine.toggleEncryption()
     private fun disconnectFromDevice() = myBluetoothService.stop()
 
@@ -138,8 +128,4 @@ class ConnectActivity : AppCompatActivity() {
         val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
         stateMachine.onUserInput(publicKeyString.toByteArray())
     }
-}
-
-fun hasMarshmallow(): Boolean {
-    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
 }
