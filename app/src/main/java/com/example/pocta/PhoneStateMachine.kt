@@ -28,19 +28,19 @@ class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice,
     val ERR = '2'
     val ACK = "1"
     val NACK = "0"
-    var deviceName = "Device_PH"
+    var deviceName = btDevice.name ?: "Device_PH"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
     private val myHandler = @SuppressLint("HandlerLeak")
     object : Handler() {
         override fun handleMessage(msg: Message) {
             when (msg.what) {
                 MyBluetoothService.MESSAGE_READ -> {
-                    val writeBuf = msg.obj as ByteArray
-                    onBTOutput(writeBuf)
-                }
-                MyBluetoothService.MESSAGE_WRITE -> {
                     val incomingBytes = msg.obj as ByteArray
                     onBTInput(incomingBytes, msg.arg1)
+                }
+                MyBluetoothService.MESSAGE_WRITE -> {
+                    val outgoingBytes = msg.obj as ByteArray
+                    onBTOutput(outgoingBytes)
                 }
                 MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
                 MyBluetoothService.CONNECTION_START -> onBTConnection()
