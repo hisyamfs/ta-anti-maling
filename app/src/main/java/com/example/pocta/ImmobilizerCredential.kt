@@ -1,66 +1,57 @@
 package com.example.pocta
 
 import android.content.Context
-import androidx.room.*
+import android.database.sqlite.SQLiteDatabase
+import android.os.Parcelable
+import kotlinx.android.parcel.Parcelize
+import org.jetbrains.anko.db.*
 
-@Entity(tableName = "immobilizer_table")
+const val IMMOBILIZER_DB = "database_immobilizer.db"
+
+@Parcelize
 data class Immobilizer(
-    @PrimaryKey @ColumnInfo(name = "mac_address") val address: String,
-    @ColumnInfo(name = "immobilizer_name") val name: String,
-    @ColumnInfo(name = "cipher_key") var cipherKey: String,
-    @ColumnInfo(name = "usage_count") val usageCount: Int,
-    @ColumnInfo(name = "last_usage") val lastUsage: String
-)
-
-@Dao
-interface ImmobilizerDAO {
-    @Query("SELECT * FROM immobilizer_table")
-    fun getAll(): List<Immobilizer>
-
-    @Query("SELECT * FROM immobilizer_table WHERE mac_address=:qAddress LIMIT 1")
-    fun getByAddress(qAddress: String): Immobilizer
-
-    @Query("SELECT * FROM immobilizer_table WHERE immobilizer_name=:qName LIMIT 1")
-    fun getByName(qName: String): Immobilizer
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insert(newImmobilizer: Immobilizer)
-
-    @Update
-    fun update(vararg immobilizer: Immobilizer)
-
-    @Delete
-    fun deleteImmobilizer(immobilizer: Immobilizer)
-}
-
-@Database(
-    entities = [Immobilizer::class],
-    version = 1,
-    exportSchema = false
-)
-abstract class ImmobilizerDatabase: RoomDatabase() {
-    abstract fun immobilizerDao(): ImmobilizerDAO
+    val id: Long?,
+    val address: String,
+    val name: String,
+    val key: String
+) : Parcelable {
     companion object {
-        @Volatile
-        private var INSTANCE: ImmobilizerDatabase? = null
-
-        fun getDatabase(context: Context): ImmobilizerDatabase {
-            val tempInstance = INSTANCE
-            if (tempInstance != null) {
-                return tempInstance
-            }
-            synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    ImmobilizerDatabase::class.java,
-                    "word_database"
-                ).build()
-                INSTANCE = instance
-                return instance
-            }
-        }
+        const val TABLE_IMMOBILIZER = "table_immobilizer"
+        const val ID = "id"
+        const val ADDRESS = "address"
+        const val NAME = "name"
+        const val KEY = "key"
     }
 }
 
+class ImmobilizerDBHelper(context: Context) : ManagedSQLiteOpenHelper(context, IMMOBILIZER_DB, null, 1) {
+    companion object { // Singleton pattern
+        private var instance: ImmobilizerDBHelper? = null
+        @Synchronized
+        fun getInstance(ctx: Context): ImmobilizerDBHelper {
+            if (instance == null) {
+                instance = ImmobilizerDBHelper(ctx.applicationContext)
+            }
+            return instance!!
+        }
+    }
 
+    override fun onCreate(db: SQLiteDatabase?) {
+        // Create DB table
+        db?.createTable(
+            Immobilizer.TABLE_IMMOBILIZER,
+            true,
+            Immobilizer.ID to INTEGER + PRIMARY_KEY + AUTOINCREMENT,
+            Immobilizer.ADDRESS to TEXT + UNIQUE + NOT_NULL,
+            Immobilizer.NAME to TEXT + NOT_NULL,
+            Immobilizer.KEY to TEXT + NOT_NULL
+        )
+    }
 
+    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        db?.dropTable(Immobilizer.TABLE_IMMOBILIZER, true)
+    }
+}
+
+val Context.database: ImmobilizerDBHelper
+    get() = ImmobilizerDBHelper.getInstance(this)

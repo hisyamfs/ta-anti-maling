@@ -6,6 +6,7 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import org.jetbrains.anko.db.*
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -14,7 +15,6 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
 class MyCredentialManager(private val context: Context) {
-    private var db: ImmobilizerDatabase? = ImmobilizerDatabase.getDatabase(context)
     companion object {
         const val KEY_ALIAS = "ImmobilizerAESKey"
         const val TAG = "MyCredentialManager"
@@ -82,8 +82,13 @@ class MyCredentialManager(private val context: Context) {
 //            val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
 //            return SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
 //        }
-        val immobilizer = db?.immobilizerDao()?.getByAddress(immobilizerAddress)
-        val cipherKeyStr = immobilizer?.cipherKey
+        var immobilizer: Immobilizer? = null
+        context.database.use {
+            val result = select(Immobilizer.TABLE_IMMOBILIZER)
+                .whereSimple("${Immobilizer.ADDRESS} = ?", immobilizerAddress)
+            immobilizer = result.parseOpt(classParser())
+        }
+        val cipherKeyStr = immobilizer?.key
         return if (cipherKeyStr != null) {
             val encodedKey = Base64.decode(cipherKeyStr, Base64.DEFAULT)
             SecretKeySpec(encodedKey, 0, encodedKey.size, "AES")
@@ -93,31 +98,39 @@ class MyCredentialManager(private val context: Context) {
     }
 
     // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
-    fun setStoredKey(immobilizerAddress: String, newKey: SecretKey?) {
-//        if (newKey != null) {
-        val newKeyStr = Base64.encodeToString(newKey!!.encoded, Base64.DEFAULT)
-//            val editor = context.getSharedPreferences("PREFS", 0)
-//                    .edit()
-//                    .putString("CIPHERKEY", newKeyStr)
-//                    .apply()
-        val immobilizer = db?.immobilizerDao()?.getByAddress(immobilizerAddress)
-        immobilizer?.cipherKey = newKeyStr
-        db?.immobilizerDao()?.update(immobilizer!!)
-//        }
-    }
-
-    fun getStoredRSAKeyPair() : KeyPair {
-        return if (hasMarshmallow()) {
-            createAsymmetricKeyPair()
-            getAsymmetricKeyPair()!!
-        } else {
-            createAsymmetricKeyPair()
+    fun setStoredKey(immobilizerAddress: String, immobilizerName: String, newKey: SecretKey) {
+        val newKeyStr: String = Base64.encodeToString(newKey.encoded, Base64.DEFAULT)
+        context.database.use {
+            replace(
+                Immobilizer.TABLE_IMMOBILIZER,
+                Immobilizer.ADDRESS to immobilizerAddress,
+                Immobilizer.NAME to immobilizerName,
+                Immobilizer.KEY to newKeyStr
+            )
         }
     }
 
-    fun deleteAccount(immobilizerAddress: String) {
-        val immobilizer = db?.immobilizerDao()?.getByAddress(immobilizerAddress)
-        db?.immobilizerDao()?.deleteImmobilizer(immobilizer!!)
+    fun getStoredRSAKeyPair() : KeyPair {
+        var kp = if (hasMarshmallow()) {
+            createAsymmetricKeyPair()
+            getAsymmetricKeyPair()
+        } else {
+            createAsymmetricKeyPair()
+        }
+        if (kp == null) kp = createAsymmetricKeyPair()
+        return kp
+    }
+
+    fun deleteAccount(immobilizerAddress: String): Int {
+        var numDeleted: Int = 0
+        context.database.use {
+            numDeleted = delete(
+                Immobilizer.TABLE_IMMOBILIZER,
+                "${Immobilizer.ADDRESS} = {qAddress}",
+                "qAddress" to immobilizerAddress
+            )
+        }
+        return numDeleted
     }
 }
 

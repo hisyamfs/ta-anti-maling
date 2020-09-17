@@ -1,13 +1,16 @@
 package com.example.pocta
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import android.content.Context
+import android.os.Handler
+import android.os.Message
 import android.util.Base64
 import android.widget.TextView
 import java.security.KeyPair
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
-import android.content.SharedPreferences
 
 const val BT_DISCONNECT_MSG = "Saluran Bluetooth terputus."
 const val BT_CONNECT_MSG = "Saluran Bluetooth tersambung"
@@ -21,28 +24,43 @@ enum class USER_REQUEST(val reqString: String) {
     DISABLE("!5")
 }
 
-class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: TextView, private val cm: MyCredentialManager) {
+class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice, private val ui: TextView) {
     val ERR = '2'
     val ACK = "1"
     val NACK = "0"
     var deviceName = "Device_PH"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
-    private var hpRSAKeyPair: KeyPair? = null
-    private var myKey: SecretKey? = null
-
+    private val myHandler = @SuppressLint("HandlerLeak")
+    object : Handler() {
+        override fun handleMessage(msg: Message) {
+            when (msg.what) {
+                MyBluetoothService.MESSAGE_READ -> {
+                    val writeBuf = msg.obj as ByteArray
+                    onBTOutput(writeBuf)
+                }
+                MyBluetoothService.MESSAGE_WRITE -> {
+                    val incomingBytes = msg.obj as ByteArray
+                    onBTInput(incomingBytes, msg.arg1)
+                }
+                MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
+                MyBluetoothService.CONNECTION_START -> onBTConnection()
+            }
+        }
+    }
+    private val bt: MyBluetoothService = MyBluetoothService(context, myHandler)
+    private val cm: MyCredentialManager = MyCredentialManager(context)
+    private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair()
+    private var myKey: SecretKey = cm.getStoredKey(btDevice.address)
+    private var appState: PhoneState = DisconnectState(this)
     init {
         bt.useInputDecryption = false
         bt.useOutputEncryption = false
-        myKey = cm.getStoredKey()
-        hpRSAKeyPair = cm.getStoredRSAKeyPair()
         bt.apply {
-            setAESKey(myKey!!)
+            setAESKey(myKey)
             useOutputEncryption = false
             useInputDecryption = false
         }
     }
-
-    private var appState: PhoneState = DisconnectState(this)
 
     /* Handle state transition */
     fun changeState(state: PhoneState) {
@@ -50,7 +68,7 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
         appState.announce()
     }
 
-    /* UI and Bluetooth handler delegate to active state */
+    /* FSM events */
     fun onBTInput(bytes: ByteArray, len: Int) = appState.onBTInput(bytes, len)
     fun onBTOutput(bytes: ByteArray) = appState.onBTOutput(bytes)
     fun onUserRequest(req: USER_REQUEST) {
@@ -62,6 +80,9 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
     fun onBTDisconnect() = appState.onBTDisconnect()
 
     /* Common methods for all states */
+    fun connect() = bt.startClient(btDevice, MyBluetoothService.uuid)
+    fun disconnect() = bt.stop()
+
     // send unencrypted data to the device
     fun sendData(bytes: ByteArray) {
         disableEncryption()
@@ -118,9 +139,18 @@ class PhoneStateMachine(private val bt: MyBluetoothService, private val ui: Text
         hpRSAKeyPair = kp
     }
 
-    fun setMyAESKey(myKey: SecretKey) {
-        cm.setStoredKey(myKey)
+    fun setMyAESKey(newKey: SecretKey) {
+//        cm.setStoredKey(btDevice.address, myKey)
+        myKey = newKey
         bt.setAESKey(myKey)
+    }
+
+    fun updateDatabase() {
+        cm.setStoredKey(btDevice.address, btDevice.name, myKey)
+    }
+
+    fun deleteAccount() {
+        cm.deleteAccount(btDevice.address)
     }
 
     fun sendRSAPubKey() {
@@ -382,6 +412,8 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
             sm.updateUI("Password berhasil diperbaharui!")
+            // update Database Immobilizer dengan cipherkey terbaru
+            sm.updateDatabase()
         } else {
             sm.updateUI("Password gagal didaftarkan")
         }
@@ -411,6 +443,7 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
         if (incomingMessage == sm.ACK) {
             // TODO("Lakukan penghapusan akun terdaftar di HP juga")
             sm.updateUI("Akun berhasil dihapus!")
+            sm.deleteAccount()
         } else {
             sm.updateUI("Akun gagal dihapus!")
         }
