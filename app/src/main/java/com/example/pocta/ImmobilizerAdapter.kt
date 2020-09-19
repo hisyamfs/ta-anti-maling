@@ -1,0 +1,49 @@
+package com.example.pocta
+
+import android.content.Context
+import android.content.Intent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import com.example.pocta.HubActivity.Companion.EXTRA_ADDRESS
+import com.example.pocta.databinding.ItemImmobilizerBinding
+import kotlinx.android.synthetic.main.item_immobilizer.view.*
+
+class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>)
+    : RecyclerView.Adapter<ImmobilizerAdapter.ViewHolder>() {
+    private var mContext: Context = context
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        val binding = ItemImmobilizerBinding.inflate(inflater)
+        return ViewHolder(binding)
+    }
+
+    override fun getItemCount(): Int {
+        return list.size
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(list[position])
+    }
+
+    inner class ViewHolder(private val binding: ItemImmobilizerBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(immobilizer: Immobilizer) {
+            binding.apply {
+                itemImmoName.text = immobilizer.name
+                itemImmoAddress.text = immobilizer.address
+                itemUnlockDeviceButton.setOnClickListener {
+                    startConnectActivity(immobilizer.address)
+                }
+            }
+        }
+
+        private fun startConnectActivity(address: String) {
+            val startConnect: Intent = Intent(mContext, ConnectActivity::class.java).apply {
+                putExtra(EXTRA_ADDRESS, address)
+            }
+            mContext.startActivity(startConnect)
+        }
+    }
+}

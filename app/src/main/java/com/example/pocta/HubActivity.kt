@@ -9,12 +9,18 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityHubBinding
+import kotlinx.android.synthetic.main.activity_hub.*
+import org.jetbrains.anko.db.classParser
+import org.jetbrains.anko.db.select
 
 class HubActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHubBinding
     private var btAdapter: BluetoothAdapter? = null
     private lateinit var btDevices: Set<BluetoothDevice>
+    private var immobilizerAdapter: ImmobilizerAdapter? = null
+    private var list: List<Immobilizer> = emptyList()
     private val REQUEST_ENABLE = 1
 
     companion object {
@@ -26,23 +32,30 @@ class HubActivity : AppCompatActivity() {
         binding = DataBindingUtil.setContentView(this, R.layout.activity_hub)
         // check if bt is enabled
         btAdapter = BluetoothAdapter.getDefaultAdapter()
+        // refresh list
+        getImmobilizerList()
+        val layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        immobilizerAdapter = ImmobilizerAdapter(this, list)
+
+        binding.pairedDevicesList.layoutManager = layoutManager
+        binding.pairedDevicesList.adapter = immobilizerAdapter
+
         if (btAdapter == null) {
             binding.apply {
                 enableBtButton.isEnabled = false
                 refreshListButton.isEnabled = false
-                hubHeaderText.text = getString(R.string.btAdapter_null_message)
             }
         }
         else {
             // Set the listeners
             binding.apply {
-                enableBtButton.setOnClickListener { enableBluetooth(it) }
-                refreshListButton.setOnClickListener { listPairedDevices(it) }
+                enableBtButton.setOnClickListener { enableBluetooth() }
+                refreshListButton.setOnClickListener { listPairedDevices() }
             }
         }
     }
 
-    private fun enableBluetooth(it: View?) {
+    private fun enableBluetooth() {
         if (!btAdapter!!.isEnabled) {
             val turnOnBt = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivityForResult(turnOnBt, REQUEST_ENABLE)
@@ -53,43 +66,25 @@ class HubActivity : AppCompatActivity() {
         }
     }
 
-    private fun listPairedDevices(it: View?) {
+    private fun getImmobilizerList() {
+        database.use {
+            val result = select(Immobilizer.TABLE_IMMOBILIZER)
+            list = result.parseList(classParser())
+        }
+    }
+    private fun listPairedDevices() {
         if (btAdapter!!.isEnabled) {
             btDevices = btAdapter!!.bondedDevices
-            val list = ArrayList<String>() // empty list
-            val dict = HashMap<String, String>()
-            if (btDevices.isNotEmpty()) {
-                for (device in btDevices) {
-                    list.add(device.name)
-                    dict[device.name] = device.address
-                }
-
-                val numDevices: Int = list.size
-                val listAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
-                val scoreDevices: String = "Found $numDevices paired devices"
-
-                binding.apply {
-                    hubHeaderText.text = scoreDevices
-                    pairedDevicesList.adapter = listAdapter
-                    pairedDevicesList.visibility = View.VISIBLE
-                    pairedDevicesList.setOnItemClickListener { _, _, position, _ ->
-                        val selectedAddress: String? = dict[list[position]]
-                        if (selectedAddress != null) {
-                            val startConnect =
-                                Intent(this@HubActivity, ConnectActivity::class.java).apply {
-                                    putExtra(EXTRA_ADDRESS, selectedAddress)
-                                }
-                            startActivity(startConnect)
-                        } else {
-                            Toast.makeText(this@HubActivity, "Null Address????", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                }
+            getImmobilizerList()
+            if (list.isNotEmpty()) {
+                immobilizerAdapter = ImmobilizerAdapter(this, list)
+                immobilizerAdapter?.notifyDataSetChanged()
+                binding.pairedDevicesList.adapter = immobilizerAdapter
             } else {
-                binding.apply {
-                    hubHeaderText.text = getString(R.string.hub_no_paired_device)
-                    pairedDevicesList.visibility = View.GONE
-                }
+                Toast.makeText(this,
+                    "Tidak ada device immobilizer yang terdaftar!",
+                    Toast.LENGTH_SHORT)
+                    .show()
             }
         } else {
             Toast.makeText(this, "Please turn on Bluetooth first", Toast.LENGTH_LONG).show()

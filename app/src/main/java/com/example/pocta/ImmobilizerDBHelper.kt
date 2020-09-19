@@ -2,27 +2,9 @@ package com.example.pocta
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import android.os.Parcelable
-import kotlinx.android.parcel.Parcelize
 import org.jetbrains.anko.db.*
 
 const val IMMOBILIZER_DB = "database_immobilizer.db"
-
-@Parcelize
-data class Immobilizer(
-    val id: Long?,
-    val address: String,
-    val name: String,
-    val key: String
-) : Parcelable {
-    companion object {
-        const val TABLE_IMMOBILIZER = "table_immobilizer"
-        const val ID = "id"
-        const val ADDRESS = "address"
-        const val NAME = "name"
-        const val KEY = "key"
-    }
-}
 
 class ImmobilizerDBHelper(context: Context) : ManagedSQLiteOpenHelper(context, IMMOBILIZER_DB, null, 1) {
     companion object { // Singleton pattern
