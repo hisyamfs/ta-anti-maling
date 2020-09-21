@@ -84,11 +84,11 @@ class HubActivity : AppCompatActivity() {
 
     private fun listPairedDevices() {
         getImmobilizerList()
-        if (list.isNotEmpty()) {
-            immobilizerAdapter = ImmobilizerAdapter(this, list)
-            immobilizerAdapter?.notifyDataSetChanged()
-            binding.pairedDevicesList.adapter = immobilizerAdapter
-        } else {
+//        if (list.isNotEmpty()) {
+        immobilizerAdapter = ImmobilizerAdapter(this, list)
+        immobilizerAdapter?.notifyDataSetChanged()
+        binding.pairedDevicesList.adapter = immobilizerAdapter
+        if (list.isEmpty()) {
             Toast.makeText(
                 this,
                 "Tidak ada device immobilizer yang terdaftar!",

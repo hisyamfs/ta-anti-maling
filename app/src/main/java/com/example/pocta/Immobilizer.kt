@@ -12,7 +12,7 @@ data class Immobilizer(
 ) : Parcelable {
     override fun toString(): String = "$name\n$address"
     companion object {
-        const val TABLE_IMMOBILIZER = "table_immobilizer"
+        const val TABLE_IMMOBILIZER = "table_immobilizer2"
         const val ID = "id"
         const val ADDRESS = "address"
         const val NAME = "name"
