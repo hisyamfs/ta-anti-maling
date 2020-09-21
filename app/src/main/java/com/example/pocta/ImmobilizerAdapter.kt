@@ -16,7 +16,7 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
-        val binding = ItemImmobilizerBinding.inflate(inflater)
+        val binding = ItemImmobilizerBinding.inflate(inflater, parent, false)
         return ViewHolder(binding)
     }
 
