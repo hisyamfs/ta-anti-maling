@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Message
 import android.util.Base64
+import android.util.Log
 import android.widget.TextView
 import java.security.KeyPair
 import javax.crypto.Cipher
@@ -24,11 +25,15 @@ enum class USER_REQUEST(val reqString: String) {
     DISABLE("!5")
 }
 
-class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice, private val ui: TextView) {
+class PhoneStateMachine(context: Context, private val ui: TextView) {
+    private var btDevice: BluetoothDevice? = null
     val ERR = '2'
     val ACK = "1"
     val NACK = "0"
-    var deviceName = btDevice.name ?: "Device_PH"
+    companion object {
+        const val TAG = "PhoneStateMachine"
+    }
+    var deviceName = btDevice?.name ?: "Device_PH"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
     private val myHandler = @SuppressLint("HandlerLeak")
     object : Handler() {
@@ -50,17 +55,8 @@ class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice,
     private val bt: MyBluetoothService = MyBluetoothService(context, myHandler)
     private val cm: MyCredentialManager = MyCredentialManager(context)
     private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair()
-    private var myKey: SecretKey = cm.getStoredKey(btDevice.address)
+    private var myKey: SecretKey = cm.getDefaultSymmetricKey()
     private var appState: PhoneState = DisconnectState(this)
-    init {
-        bt.useInputDecryption = false
-        bt.useOutputEncryption = false
-        bt.apply {
-            setAESKey(myKey)
-            useOutputEncryption = false
-            useInputDecryption = false
-        }
-    }
 
     /* Handle state transition */
     fun changeState(state: PhoneState) {
@@ -80,7 +76,31 @@ class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice,
     fun onBTDisconnect() = appState.onBTDisconnect()
 
     /* Common methods for all states */
-    fun connect() = bt.startClient(btDevice, MyBluetoothService.uuid)
+    fun initConnection(device: BluetoothDevice, req: USER_REQUEST = USER_REQUEST.NOTHING) {
+        Log.i(TAG, "Initializing connection at ${device.address}")
+        // Reset State and Connection
+        disconnect()
+//        if (appState != DisconnectState(this))
+//            appState = DisconnectState(this)
+        // Set private variables
+        btDevice = device
+        userRequest = req
+        myKey = cm.getStoredKey(btDevice!!.address)
+        bt.apply {
+            setAESKey(myKey)
+            useOutputEncryption = false
+            useInputDecryption = false
+        }
+        if (userRequest != USER_REQUEST.NOTHING)
+            onUserRequest(req)
+    }
+
+    fun connect() {
+        if (btDevice != null)
+            bt.startClient(btDevice, MyBluetoothService.uuid)
+        else
+            Log.e(TAG, "btDevice is null")
+    }
     fun disconnect() = bt.stop()
 
     // send unencrypted data to the device
@@ -146,17 +166,19 @@ class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice,
     }
 
     fun updateDatabase() {
-        cm.setStoredKey(btDevice.address, btDevice.name, myKey)
+        if (btDevice != null)
+            cm.setStoredKey(btDevice!!.address, btDevice!!.name, myKey)
     }
 
     fun deleteAccount() {
-        cm.deleteAccount(btDevice.address)
+        if (btDevice != null)
+            cm.deleteAccount(btDevice!!.address)
     }
 
     fun sendRSAPubKey() {
         val publicKeyHeader = "-----BEGIN PUBLIC KEY-----"
         val publicKeyBottom = "-----END PUBLIC KEY-----"
-        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair?.public?.encoded, Base64.DEFAULT)
+        val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public?.encoded, Base64.DEFAULT)
         val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
         sendData(publicKeyString.toByteArray())
     }
@@ -164,10 +186,10 @@ class PhoneStateMachine(context: Context, private val btDevice: BluetoothDevice,
     fun decryptSecretKey(bytes: ByteArray): SecretKey {
         var secretKeyByteArray: ByteArray
         val defaultKeyString = "abcdefghijklmnop"
-        secretKeyByteArray = if (hpRSAKeyPair?.private != null) {
+        secretKeyByteArray = if (hpRSAKeyPair.private != null) {
             try {
                 val cipher: Cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-                cipher.init(Cipher.DECRYPT_MODE, hpRSAKeyPair?.private)
+                cipher.init(Cipher.DECRYPT_MODE, hpRSAKeyPair.private)
                 cipher.doFinal(bytes)
             } catch (e: Exception) {
                 defaultKeyString.toByteArray()
@@ -211,6 +233,12 @@ class DisconnectState(sm: PhoneStateMachine) : PhoneState(sm) {
         super.announce()
         sm.updateUI("State: Disconnect")
     }
+
+    override fun onUserRequest() {
+        if (sm.userRequest != USER_REQUEST.NOTHING)
+            sm.connect()
+    }
+
     override fun onBTConnection() {
         super.onBTConnection()
         sm.changeState(ConnectState(sm))
@@ -250,6 +278,8 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun announce() {
         super.announce()
         sm.updateUI("State : Request")
+        if (sm.userRequest != USER_REQUEST.NOTHING)
+            onUserRequest()
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
@@ -347,9 +377,11 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
+        val oldRequest = sm.userRequest
+        sm.userRequest = USER_REQUEST.NOTHING // cegah request berulang
         if (incomingMessage == sm.ACK) {
             sm.updateUI("Password anda benar!")
-            when (sm.userRequest) {
+            when (oldRequest) {
                 USER_REQUEST.UNLOCK -> {
                     sm.disableEncryption()
                     sm.changeState(UnlockState(sm))

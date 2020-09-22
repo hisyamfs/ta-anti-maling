@@ -46,8 +46,9 @@ class ConnectActivity : AppCompatActivity() {
             btDevice = btAdapter.getRemoteDevice(myAddress)
         }
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
-
-        stateMachine = PhoneStateMachine(this, btDevice, binding.chatField)
+        stateMachine = PhoneStateMachine(this, binding.chatField).apply {
+            initConnection(btDevice)
+        }
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -64,6 +65,11 @@ class ConnectActivity : AppCompatActivity() {
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stateMachine.disconnect()
     }
 
     private fun sendRegistrationRequest() = stateMachine.onUserRequest(USER_REQUEST.REGISTER_PHONE)

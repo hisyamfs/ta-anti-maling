@@ -26,7 +26,7 @@ class MyCredentialManager(private val context: Context) {
         return keyStore
     }
 
-    private fun getDefaultSymmetricKey(): SecretKey {
+    fun getDefaultSymmetricKey(): SecretKey {
         val secretKeyByteArray = ByteArray(16) { _ -> 0} // 16-byte array of zeroes
         return SecretKeySpec(secretKeyByteArray, "AES")
     }

@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
@@ -22,6 +23,7 @@ class HubActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_ADDRESS: String = "com.example.pocta.hub.EXTRA_ADDRESS"
+        const val TAG = "HubActivity"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,9 +78,13 @@ class HubActivity : AppCompatActivity() {
     }
 
     private fun getImmobilizerList() {
-        database.use {
-            val result = select(Immobilizer.TABLE_IMMOBILIZER)
-            list = result.parseList(classParser())
+        try {
+            database.use {
+                val result = select(Immobilizer.TABLE_IMMOBILIZER)
+                list = result.parseList(classParser())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getImmobilizerList ERROR:", e)
         }
     }
 
