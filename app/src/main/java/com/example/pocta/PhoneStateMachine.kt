@@ -54,7 +54,7 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
     }
     private val bt: MyBluetoothService = MyBluetoothService(context, myHandler)
     private val cm: MyCredentialManager = MyCredentialManager(context)
-    private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair()
+    private var hpRSAKeyPair: KeyPair = cm.getDefaultRSAKeyPair()
     private var myKey: SecretKey = cm.getDefaultSymmetricKey()
     private var appState: PhoneState = DisconnectState(this)
 
@@ -181,6 +181,10 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
         val encodedPublicKey = Base64.encodeToString(hpRSAKeyPair.public?.encoded, Base64.DEFAULT)
         val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
         sendData(publicKeyString.toByteArray())
+    }
+
+    fun resetKeyPair() {
+        cm.resetStoredRSAKeyPair()
     }
 
     fun decryptSecretKey(bytes: ByteArray): SecretKey {
@@ -377,11 +381,11 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
-        val oldRequest = sm.userRequest
-        sm.userRequest = USER_REQUEST.NOTHING // cegah request berulang
+//        val oldRequest = sm.userRequest
+//        sm.userRequest = USER_REQUEST.NOTHING // cegah request berulang
         if (incomingMessage == sm.ACK) {
             sm.updateUI("Password anda benar!")
-            when (oldRequest) {
+            when (sm.userRequest) {
                 USER_REQUEST.UNLOCK -> {
                     sm.disableEncryption()
                     sm.changeState(UnlockState(sm))
@@ -396,6 +400,7 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
                     sm.changeState(DeleteState(sm))
                 }
                 else -> {
+                    sm.userRequest = USER_REQUEST.NOTHING
                     sm.disableEncryption()
                     sm.changeState(RequestState(sm))
                 }
@@ -424,6 +429,7 @@ class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
+        sm.userRequest = USER_REQUEST.NOTHING
         sm.changeState(RequestState(sm))
     }
 
@@ -449,6 +455,7 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
         } else {
             sm.updateUI("Password gagal didaftarkan")
         }
+        sm.userRequest = USER_REQUEST.NOTHING
         sm.changeState(RequestState(sm))
     }
 
@@ -479,6 +486,7 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
         } else {
             sm.updateUI("Akun gagal dihapus!")
         }
+        sm.userRequest = USER_REQUEST.NOTHING
         sm.changeState(RequestState(sm))
     }
 
@@ -499,6 +507,7 @@ class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
         sm.updateUI("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
 //            sm.updateUI("To RequestState")
+            sm.userRequest = USER_REQUEST.NOTHING
             sm.changeState(RequestState(sm))
         }
     }

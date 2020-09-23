@@ -7,14 +7,15 @@ import org.jetbrains.anko.db.*
 const val IMMOBILIZER_DB = "database_immobilizer.db"
 
 class ImmobilizerDBHelper(context: Context) : ManagedSQLiteOpenHelper(context, IMMOBILIZER_DB, null, 1) {
+    init {
+        instance = this
+    }
+
     companion object { // Singleton pattern
         private var instance: ImmobilizerDBHelper? = null
         @Synchronized
-        fun getInstance(ctx: Context): ImmobilizerDBHelper {
-            if (instance == null) {
-                instance = ImmobilizerDBHelper(ctx.applicationContext)
-            }
-            return instance!!
+        fun getInstance(context: Context): ImmobilizerDBHelper {
+            return instance ?: ImmobilizerDBHelper(context)
         }
     }
 
@@ -26,7 +27,7 @@ class ImmobilizerDBHelper(context: Context) : ManagedSQLiteOpenHelper(context, I
             Immobilizer.ID to INTEGER + PRIMARY_KEY + AUTOINCREMENT,
             Immobilizer.ADDRESS to TEXT + UNIQUE + NOT_NULL,
             Immobilizer.NAME to TEXT + NOT_NULL,
-            Immobilizer.KEY to TEXT + NOT_NULL
+            Immobilizer.KEY to BLOB + NOT_NULL
         )
     }
 

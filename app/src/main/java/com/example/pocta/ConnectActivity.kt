@@ -61,6 +61,7 @@ class ConnectActivity : AppCompatActivity() {
 //            keyExchangeButton.setOnClickListener { sendRSAPubKey() }
             phoneRegistrationButton.setOnClickListener { sendRegistrationRequest() }
             removePhoneButton.setOnClickListener { sendDeleteRequest() }
+            resetKeyButton.setOnClickListener { resetKeyPair() }
 
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
@@ -80,7 +81,7 @@ class ConnectActivity : AppCompatActivity() {
     private fun toggleEncryption() = stateMachine.toggleEncryption()
     private fun disconnectFromDevice() = stateMachine.disconnect()
     private fun connectToDevice() = stateMachine.connect()
-
+    private fun resetKeyPair() = stateMachine.resetKeyPair()
     private fun sendMessage() {
         val userInput = binding.userInput.text.toString()
         stateMachine.onUserInput(userInput.toByteArray())

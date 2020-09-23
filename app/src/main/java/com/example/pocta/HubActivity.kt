@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityHubBinding
+import org.jetbrains.anko.db.BlobParser
 import org.jetbrains.anko.db.classParser
 import org.jetbrains.anko.db.select
 
@@ -29,6 +30,7 @@ class HubActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_hub)
+        btAdapter = BluetoothAdapter.getDefaultAdapter()
         // refresh list
         getImmobilizerList()
         val mLayoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
@@ -54,7 +56,6 @@ class HubActivity : AppCompatActivity() {
         if (!btAdapter!!.isEnabled) {
             val turnOnBt = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivityForResult(turnOnBt, REQUEST_ENABLE_BT)
-//            Toast.makeText(this, "Bluetooth On", Toast.LENGTH_SHORT).show()
         }
         else {
             Toast.makeText(this, "Bluetooth Already On", Toast.LENGTH_SHORT).show()
@@ -81,7 +82,7 @@ class HubActivity : AppCompatActivity() {
         try {
             database.use {
                 val result = select(Immobilizer.TABLE_IMMOBILIZER)
-                list = result.parseList(classParser())
+                list = result.parseList(immobilizerParser)
             }
         } catch (e: Exception) {
             Log.e(TAG, "getImmobilizerList ERROR:", e)
@@ -90,7 +91,6 @@ class HubActivity : AppCompatActivity() {
 
     private fun listPairedDevices() {
         getImmobilizerList()
-//        if (list.isNotEmpty()) {
         immobilizerAdapter = ImmobilizerAdapter(this, list)
         immobilizerAdapter?.notifyDataSetChanged()
         binding.pairedDevicesList.adapter = immobilizerAdapter

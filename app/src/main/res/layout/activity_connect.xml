@@ -78,8 +78,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/reset_key"
                 android:layout_margin="8dp"
-                android:layout_gravity="center_horizontal"
-                android:visibility="gone"/>
+                android:layout_gravity="center_horizontal" />
 
             <Button
                 android:id="@+id/keyExchangeButton"
