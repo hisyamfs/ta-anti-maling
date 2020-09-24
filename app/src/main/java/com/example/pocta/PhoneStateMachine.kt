@@ -54,7 +54,7 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
     }
     private val bt: MyBluetoothService = MyBluetoothService(context, myHandler)
     private val cm: MyCredentialManager = MyCredentialManager(context)
-    private var hpRSAKeyPair: KeyPair = cm.getDefaultRSAKeyPair()
+    private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair() ?: cm.getDefaultRSAKeyPair()
     private var myKey: SecretKey = cm.getDefaultSymmetricKey()
     private var appState: PhoneState = DisconnectState(this)
 
