@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.Message
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.lang.ref.WeakReference
 
 class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
@@ -21,7 +22,10 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
     override fun handleMessage(msg: Message) {
         hService.get()?.apply {
             when (msg.what) {
-                PhoneStateMachine.MESSAGE_UI -> immobilizerData = msg.obj as String
+                PhoneStateMachine.MESSAGE_UI -> {
+                    immobilizerData = msg.obj as String
+                    sendResult(immobilizerData)
+                }
             }
         }
     }
@@ -30,10 +34,13 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
 class ImmobilizerService : Service() {
     private var immobilizerStatus: String = "Uhuy!"
     var immobilizerData: String = ""
-    private val smHandler = ImmobilizerHandler(this)
+    private lateinit var smHandler: Handler
+    private lateinit var broadcastManager: LocalBroadcastManager
 
     companion object {
         const val CHANNEL_ID = "ImmobilizerService"
+        const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.NEW_DATA"
+        const val IMMOBILIZER_SERVICE_DATA = "com.example.pocta.ImmobilizerService.DATA"
         lateinit var btAdapter: BluetoothAdapter
         lateinit var btDevice: BluetoothDevice
         lateinit var immobilizerController: PhoneStateMachine
@@ -80,6 +87,9 @@ class ImmobilizerService : Service() {
         // TODO("Refactor PhoneStateMachine agar tidak ter-couple ke TextView langsung")
         immobilizerController = PhoneStateMachine(this, smHandler)
         btAdapter = BluetoothAdapter.getDefaultAdapter()
+        smHandler = ImmobilizerHandler(this)
+        broadcastManager = LocalBroadcastManager.getInstance(this)
+
         val pendingIntent: PendingIntent =
             Intent(this, HubActivity::class.java).let { notificationIntent ->
                 PendingIntent.getActivity(this, 0, notificationIntent, 0)
@@ -118,4 +128,9 @@ class ImmobilizerService : Service() {
         }
     }
 
+    fun sendResult(message: String) {
+        val intent = Intent(IMMOBILIZER_SERVICE_NEW_DATA)
+            .putExtra(IMMOBILIZER_SERVICE_DATA, message)
+        broadcastManager.sendBroadcast(intent)
+    }
 }

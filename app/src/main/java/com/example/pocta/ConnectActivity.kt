@@ -3,7 +3,10 @@ package com.example.pocta
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -13,6 +16,7 @@ import android.util.Base64
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.LifecycleOwner
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.pocta.MyBluetoothService.Companion.CONNECTION_LOST
 import com.example.pocta.MyBluetoothService.Companion.CONNECTION_START
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
@@ -25,7 +29,9 @@ import javax.crypto.SecretKey
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
     private lateinit var myAddress: String
+    private lateinit var receiver: BroadcastReceiver
     private val tag = "ConnectActivity"
+    private var chatMessage: String = ""
 
     companion object {
         const val lt = "ConnectActivity"
@@ -38,7 +44,7 @@ class ConnectActivity : AppCompatActivity() {
 
         // TODO("Cari tahu kenapa dapat tipe nullable dari getStringExtra()")
         myAddress = intent.getStringExtra(HubActivity.EXTRA_ADDRESS) ?: 0.toString()
-        val chatMessage = "Starting comms with device at MAC address: $myAddress"
+        chatMessage = "Starting comms with device at MAC address: $myAddress"
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -56,11 +62,33 @@ class ConnectActivity : AppCompatActivity() {
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
         }
+
+        receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val newData = intent?.getStringExtra(ImmobilizerService.IMMOBILIZER_SERVICE_DATA)
+                newData?.let {
+                    chatMessage = "$chatMessage\n$it"
+                }
+                binding.chatField.text = chatMessage
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        LocalBroadcastManager.getInstance(this)
+            .registerReceiver(receiver, IntentFilter(ImmobilizerService.IMMOBILIZER_SERVICE_NEW_DATA))
+    }
+
+    override fun onStop() {
+        LocalBroadcastManager.getInstance(this)
+            .unregisterReceiver(receiver)
+        super.onStop()
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         ImmobilizerService.immobilizerController.disconnect()
+        super.onDestroy()
     }
 
     private fun sendRegistrationRequest() {
