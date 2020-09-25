@@ -8,6 +8,7 @@ import android.os.Message
 import android.util.Base64
 import android.util.Log
 import android.widget.TextView
+import java.lang.ref.WeakReference
 import java.security.KeyPair
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
@@ -25,19 +26,10 @@ enum class USER_REQUEST(val reqString: String) {
     DISABLE("!5")
 }
 
-class PhoneStateMachine(context: Context, private val ui: TextView) {
-    private var btDevice: BluetoothDevice? = null
-    val ERR = '2'
-    val ACK = "1"
-    val NACK = "0"
-    companion object {
-        const val TAG = "PhoneStateMachine"
-    }
-    var deviceName = btDevice?.name ?: "Device_PH"
-    var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
-    private val myHandler = @SuppressLint("HandlerLeak")
-    object : Handler() {
-        override fun handleMessage(msg: Message) {
+class BluetoothHandler(sm: PhoneStateMachine): Handler() {
+    private val rStateMachine = WeakReference<PhoneStateMachine>(sm)
+    override fun handleMessage(msg: Message) {
+        rStateMachine.get()?.apply {
             when (msg.what) {
                 MyBluetoothService.MESSAGE_READ -> {
                     val incomingBytes = msg.obj as ByteArray
@@ -52,11 +44,27 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
             }
         }
     }
-    private val bt: MyBluetoothService = MyBluetoothService(context, myHandler)
+}
+
+class PhoneStateMachine(context: Context, private val extHandler: Handler) {
+    private var btDevice: BluetoothDevice? = null
+    val ERR = '2'
+    val ACK = "1"
+    val NACK = "0"
+    var deviceName = btDevice?.name ?: "Device_PH"
+    var deviceAddress = btDevice?.address
+    var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
+    var isConnected: Boolean = false
+    private val btHandler = BluetoothHandler(this)
+    private val bt: MyBluetoothService = MyBluetoothService(context, btHandler)
     private val cm: MyCredentialManager = MyCredentialManager(context)
     private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair() ?: cm.getDefaultRSAKeyPair()
     private var myKey: SecretKey = cm.getDefaultSymmetricKey()
     private var appState: PhoneState = DisconnectState(this)
+    companion object {
+        const val TAG = "PhoneStateMachine"
+        const val MESSAGE_UI: Int = 0
+    }
 
     /* Handle state transition */
     fun changeState(state: PhoneState) {
@@ -67,7 +75,7 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
     /* FSM events */
     fun onBTInput(bytes: ByteArray, len: Int) = appState.onBTInput(bytes, len)
     fun onBTOutput(bytes: ByteArray) = appState.onBTOutput(bytes)
-    fun onUserRequest(req: USER_REQUEST) {
+    fun onUserRequest(req: USER_REQUEST, device: BluetoothDevice? = null) {
         userRequest = req
         appState.onUserRequest()
     }
@@ -84,6 +92,8 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
 //            appState = DisconnectState(this)
         // Set private variables
         btDevice = device
+        deviceName = device.name
+        deviceAddress = deviceAddress
         userRequest = req
         myKey = cm.getStoredKey(btDevice!!.address)
         bt.apply {
@@ -101,7 +111,26 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
         else
             Log.e(TAG, "btDevice is null")
     }
-    fun disconnect() = bt.stop()
+
+    fun disconnect() {
+        isConnected = false
+        bt.stop()
+    }
+
+//    fun handleMessage(msg: Message) {
+//        when (msg.what) {
+//            MyBluetoothService.MESSAGE_READ -> {
+//                val incomingBytes = msg.obj as ByteArray
+//                onBTInput(incomingBytes, msg.arg1)
+//            }
+//            MyBluetoothService.MESSAGE_WRITE -> {
+//                val outgoingBytes = msg.obj as ByteArray
+//                onBTOutput(outgoingBytes)
+//            }
+//            MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
+//            MyBluetoothService.CONNECTION_START -> onBTConnection()
+//        }
+//    }
 
     // send unencrypted data to the device
     fun sendData(bytes: ByteArray) {
@@ -116,8 +145,7 @@ class PhoneStateMachine(context: Context, private val ui: TextView) {
     }
 
     fun updateUI(str: String) {
-        val textUpdate = "${ui.text}\n$str"
-        ui.text = textUpdate
+        extHandler.obtainMessage(MESSAGE_UI, str).sendToTarget()
     }
 
     fun promptUserInput(str: String) {
@@ -224,10 +252,12 @@ open class PhoneState(val sm: PhoneStateMachine) {
     open fun onUserInput(bytes: ByteArray) {}
 
     open fun onBTConnection() {
+        sm.isConnected = true
         sm.updateUI(BT_CONNECT_MSG)
     }
 
     open fun onBTDisconnect() {
+        sm.isConnected = false
         sm.updateUI(BT_DISCONNECT_MSG)
     }
 }

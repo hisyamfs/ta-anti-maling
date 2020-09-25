@@ -30,7 +30,7 @@ class HubActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_hub)
-        btAdapter = BluetoothAdapter.getDefaultAdapter()
+        ImmobilizerService.startService(this)
         // refresh list
         getImmobilizerList()
         val mLayoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
@@ -47,13 +47,18 @@ class HubActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        ImmobilizerService.stopService(this)
+    }
+
     private fun startRegisterActivity() {
         val intent = Intent(this, RegisterActivity::class.java)
         startActivity(intent)
     }
 
     private fun enableBluetooth() {
-        if (!btAdapter!!.isEnabled) {
+        if (!ImmobilizerService.btAdapter.isEnabled) {
             val turnOnBt = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivityForResult(turnOnBt, REQUEST_ENABLE_BT)
         }

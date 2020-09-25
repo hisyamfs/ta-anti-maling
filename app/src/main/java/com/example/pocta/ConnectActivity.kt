@@ -25,9 +25,6 @@ import javax.crypto.SecretKey
 class ConnectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityConnectBinding
     private lateinit var myAddress: String
-    private lateinit var stateMachine: PhoneStateMachine
-    private lateinit var btDevice: BluetoothDevice
-    private lateinit var btAdapter: BluetoothAdapter
     private val tag = "ConnectActivity"
 
     companion object {
@@ -41,14 +38,7 @@ class ConnectActivity : AppCompatActivity() {
 
         // TODO("Cari tahu kenapa dapat tipe nullable dari getStringExtra()")
         myAddress = intent.getStringExtra(HubActivity.EXTRA_ADDRESS) ?: 0.toString()
-        btAdapter = BluetoothAdapter.getDefaultAdapter()
-        if (myAddress != "0") {
-            btDevice = btAdapter.getRemoteDevice(myAddress)
-        }
         val chatMessage = "Starting comms with device at MAC address: $myAddress"
-        stateMachine = PhoneStateMachine(this, binding.chatField).apply {
-            initConnection(btDevice)
-        }
 
         binding.apply {
             connectButton.setOnClickListener { connectToDevice() }
@@ -70,20 +60,44 @@ class ConnectActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        stateMachine.disconnect()
+        ImmobilizerService.immobilizerController.disconnect()
     }
 
-    private fun sendRegistrationRequest() = stateMachine.onUserRequest(USER_REQUEST.REGISTER_PHONE)
-    private fun sendPinChangeRequest() = stateMachine.onUserRequest(USER_REQUEST.CHANGE_PIN)
-    private fun sendUnlockRequest() = stateMachine.onUserRequest(USER_REQUEST.UNLOCK)
-    private fun sendDeleteRequest() = stateMachine.onUserRequest(USER_REQUEST.REMOVE_PHONE)
-//    private fun toggleDecryption() = stateMachine.toggleDecryption()
-    private fun toggleEncryption() = stateMachine.toggleEncryption()
-    private fun disconnectFromDevice() = stateMachine.disconnect()
-    private fun connectToDevice() = stateMachine.connect()
-    private fun resetKeyPair() = stateMachine.resetKeyPair()
+    private fun sendRegistrationRequest() {
+        ImmobilizerService.immobilizerController.onUserRequest(USER_REQUEST.REGISTER_PHONE)
+    }
+
+    private fun sendPinChangeRequest() {
+        ImmobilizerService.immobilizerController.onUserRequest(USER_REQUEST.CHANGE_PIN)
+    }
+
+    private fun sendUnlockRequest() {
+        ImmobilizerService.immobilizerController.onUserRequest(USER_REQUEST.UNLOCK)
+    }
+
+    private fun sendDeleteRequest() {
+        ImmobilizerService.immobilizerController.onUserRequest(USER_REQUEST.REMOVE_PHONE)
+    }
+
+    //    private fun toggleDecryption() = ImmobilizerService.immobilizerController.toggleDecryption()
+    private fun toggleEncryption() {
+        ImmobilizerService.immobilizerController.toggleEncryption()
+    }
+
+    private fun disconnectFromDevice() {
+        ImmobilizerService.immobilizerController.disconnect()
+    }
+
+    private fun connectToDevice() {
+        ImmobilizerService.immobilizerController.connect()
+    }
+
+    private fun resetKeyPair() {
+        ImmobilizerService.immobilizerController.resetKeyPair()
+    }
+
     private fun sendMessage() {
         val userInput = binding.userInput.text.toString()
-        stateMachine.onUserInput(userInput.toByteArray())
+        ImmobilizerService.immobilizerController.onUserInput(userInput.toByteArray())
     }
 }
