@@ -12,6 +12,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Message
+import android.widget.Toast
+import androidx.core.app.ActivityCompat.startActivityForResult
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -38,6 +40,7 @@ class ImmobilizerService : Service() {
     private lateinit var broadcastManager: LocalBroadcastManager
 
     companion object {
+        const val REQUEST_ENABLE_BT = 1
         const val CHANNEL_ID = "ImmobilizerService"
         const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.NEW_DATA"
         const val IMMOBILIZER_SERVICE_DATA = "com.example.pocta.ImmobilizerService.DATA"
@@ -59,8 +62,10 @@ class ImmobilizerService : Service() {
             address: String,
             initRequest: USER_REQUEST = USER_REQUEST.NOTHING
         ) {
-            btDevice = btAdapter.getRemoteDevice(address)
-            immobilizerController.initConnection(btDevice, initRequest)
+            if (btAdapter.isEnabled) {
+                btDevice = btAdapter.getRemoteDevice(address)
+                immobilizerController.initConnection(btDevice, initRequest)
+            }
         }
 
         fun toggleConnection(address: String, alwaysDisconnect: Boolean = false) {
@@ -75,7 +80,7 @@ class ImmobilizerService : Service() {
         fun sendRequest(request: USER_REQUEST, address: String) {
             if (immobilizerController.isConnected && address == immobilizerController.deviceAddress) {
                 immobilizerController.onUserRequest(request)
-            } else {
+            } else if (btAdapter.isEnabled){
                 btDevice = btAdapter.getRemoteDevice(address)
                 immobilizerController.initConnection(btDevice, request)
             }
@@ -88,7 +93,7 @@ class ImmobilizerService : Service() {
         broadcastManager = LocalBroadcastManager.getInstance(this)
         smHandler = ImmobilizerHandler(this)
         immobilizerController = PhoneStateMachine(this, smHandler)
-        btAdapter = BluetoothAdapter.getDefaultAdapter()
+        btAdapter = BluetoothAdapter.getDefaultAdapter().apply { enable() }
 
         val pendingIntent: PendingIntent =
             Intent(this, HubActivity::class.java).let { notificationIntent ->
