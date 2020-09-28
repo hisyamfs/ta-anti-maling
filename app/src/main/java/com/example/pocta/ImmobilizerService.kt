@@ -85,10 +85,10 @@ class ImmobilizerService : Service() {
     override fun onCreate() {
         super.onCreate()
         // TODO("Refactor PhoneStateMachine agar tidak ter-couple ke TextView langsung")
+        broadcastManager = LocalBroadcastManager.getInstance(this)
+        smHandler = ImmobilizerHandler(this)
         immobilizerController = PhoneStateMachine(this, smHandler)
         btAdapter = BluetoothAdapter.getDefaultAdapter()
-        smHandler = ImmobilizerHandler(this)
-        broadcastManager = LocalBroadcastManager.getInstance(this)
 
         val pendingIntent: PendingIntent =
             Intent(this, HubActivity::class.java).let { notificationIntent ->
