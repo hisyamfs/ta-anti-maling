@@ -552,7 +552,7 @@ class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateUI("ALARM ON!!!")
-        sm.changeState(ConnectState(sm))
+        sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
