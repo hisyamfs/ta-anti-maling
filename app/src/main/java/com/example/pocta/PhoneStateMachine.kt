@@ -197,6 +197,11 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
             cm.setStoredKey(btDevice!!.address, btDevice!!.name, myKey)
     }
 
+    fun updateDatabase(name: String) {
+        if (btDevice != null)
+            cm.setStoredKey(btDevice!!.address, name, myKey)
+    }
+
     fun deleteAccount() {
         if (btDevice != null)
             cm.deleteAccount(btDevice!!.address)
@@ -500,20 +505,45 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateUI("${sm.deviceName} : $incomingMessage")
-        if (incomingMessage == sm.ACK) {
+        if (incomingMessage == sm.ACK)
             sm.updateUI("Password berhasil diperbaharui!")
-            // update Database Immobilizer dengan cipherkey terbaru
-            sm.updateDatabase()
-        } else {
+        else
             sm.updateUI("Password gagal didaftarkan")
+        when (sm.userRequest) {
+            USER_REQUEST.REGISTER_PHONE -> {
+                sm.changeState(RegisterState(sm))
+            }
+            else -> {
+                sm.updateDatabase()
+                sm.userRequest = USER_REQUEST.NOTHING
+                sm.changeState(RequestState(sm))
+            }
         }
-        sm.userRequest = USER_REQUEST.NOTHING
-        sm.changeState(RequestState(sm))
     }
 
     override fun onUserInput(bytes: ByteArray) {
         super.onUserInput(bytes)
         sm.sendEncryptedData(bytes)
+    }
+
+    override fun onBTDisconnect() {
+        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.changeState(DisconnectState(sm))
+    }
+}
+
+class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
+    override fun onTransition() {
+        super.onTransition()
+        sm.updateUI("Masukkan plat motor atau pengenal lainnya sebagai nama perangkat!")
+    }
+
+    override fun onUserInput(bytes: ByteArray) {
+        super.onUserInput(bytes)
+        sm.updateDatabase(String(bytes))
+        sm.updateUI("Nama berhasil diubah!")
+        sm.userRequest = USER_REQUEST.NOTHING
+        sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
@@ -597,13 +627,6 @@ class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
 
     override fun onBTDisconnect() {
         super.onBTDisconnect()
-        sm.changeState(DisconnectState(sm))
-    }
-}
-
-class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
-    override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
         sm.changeState(DisconnectState(sm))
     }
 }

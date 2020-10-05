@@ -81,6 +81,7 @@ class RegisterActivity : AppCompatActivity() {
                     unregisteredDeviceList.setOnItemClickListener { _, _, position, _ ->
                         val selectedAddress: String? = dict[list[position]]
                         if (selectedAddress != null) {
+                            ImmobilizerService.sendRequest(USER_REQUEST.REGISTER_PHONE, selectedAddress)
                             val startConnect =
                                 Intent(this@RegisterActivity, ConnectActivity::class.java).apply {
                                     putExtra(EXTRA_ADDRESS, selectedAddress)

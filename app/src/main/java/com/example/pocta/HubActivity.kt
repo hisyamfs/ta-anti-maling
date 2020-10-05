@@ -47,6 +47,11 @@ class HubActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        listPairedDevices()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         ImmobilizerService.stopService(this)
