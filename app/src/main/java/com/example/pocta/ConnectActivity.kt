@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Message
 import android.text.method.ScrollingMovementMethod
 import android.util.Base64
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.LifecycleOwner
@@ -23,6 +24,8 @@ import com.example.pocta.MyBluetoothService.Companion.MESSAGE_READ
 import com.example.pocta.MyBluetoothService.Companion.MESSAGE_WRITE
 import com.example.pocta.MyBluetoothService.Companion.uuid
 import com.example.pocta.databinding.ActivityConnectBinding
+import org.jetbrains.anko.db.update
+import java.lang.Exception
 import java.security.KeyPair
 import javax.crypto.SecretKey
 
@@ -58,6 +61,7 @@ class ConnectActivity : AppCompatActivity() {
             phoneRegistrationButton.setOnClickListener { sendRegistrationRequest() }
             removePhoneButton.setOnClickListener { sendDeleteRequest() }
             resetKeyButton.setOnClickListener { resetKeyPair() }
+            renameDeviceButton.setOnClickListener { renameDevice() }
 
             chatField.text = chatMessage
             chatField.movementMethod = ScrollingMovementMethod()
@@ -77,7 +81,10 @@ class ConnectActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         LocalBroadcastManager.getInstance(this)
-            .registerReceiver(receiver, IntentFilter(ImmobilizerService.IMMOBILIZER_SERVICE_NEW_DATA))
+            .registerReceiver(
+                receiver,
+                IntentFilter(ImmobilizerService.IMMOBILIZER_SERVICE_NEW_DATA)
+            )
     }
 
     override fun onStop() {
@@ -127,5 +134,20 @@ class ConnectActivity : AppCompatActivity() {
     private fun sendMessage() {
         val userInput = binding.userInput.text.toString()
         ImmobilizerService.immobilizerController.onUserInput(userInput.toByteArray())
+    }
+
+    private fun renameDevice() {
+        val userInput = binding.userInput.text.toString()
+        try {
+            database.use {
+                update(
+                    Immobilizer.TABLE_IMMOBILIZER, Immobilizer.NAME to userInput
+                )
+                    .whereSimple("${Immobilizer.ADDRESS} = ?", myAddress)
+                    .exec()
+            }
+        } catch (e: Exception) {
+            Log.e("ConnectActivity", "renameDevice() ERROR:", e)
+        }
     }
 }

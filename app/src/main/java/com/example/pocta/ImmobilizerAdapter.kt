@@ -8,8 +8,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.pocta.HubActivity.Companion.EXTRA_ADDRESS
 import com.example.pocta.databinding.ItemImmobilizerBinding
 
-class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>)
-    : RecyclerView.Adapter<ImmobilizerAdapter.ViewHolder>() {
+class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) :
+    RecyclerView.Adapter<ImmobilizerAdapter.ViewHolder>() {
     private var mContext: Context = context
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -26,7 +26,8 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>)
         holder.bind(list[position])
     }
 
-    inner class ViewHolder(private val binding: ItemImmobilizerBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class ViewHolder(private val binding: ItemImmobilizerBinding) :
+        RecyclerView.ViewHolder(binding.root) {
         fun bind(immobilizer: Immobilizer) {
             binding.apply {
                 itemImmoName.text = immobilizer.name
@@ -47,6 +48,9 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>)
                     ImmobilizerService.toggleConnection(immobilizer.address)
                     startConnectActivity(immobilizer.address)
                 }
+                itemRenameDeviceButton.setOnClickListener {
+                    renameImmobilizer(immobilizer)
+                }
             }
         }
 
@@ -55,6 +59,11 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>)
                 putExtra(EXTRA_ADDRESS, address)
             }
             mContext.startActivity(startConnect)
+        }
+
+        private fun renameImmobilizer(immobilizer: Immobilizer) {
+//        TODO("Buat UI khusus untuk rename perangkat")
+            startConnectActivity(immobilizer.address)
         }
     }
 }
