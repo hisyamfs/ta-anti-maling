@@ -7,11 +7,16 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
-import org.jetbrains.anko.db.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.jetbrains.anko.db.delete
+import org.jetbrains.anko.db.replace
+import org.jetbrains.anko.db.select
 import java.math.BigInteger
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
-import java.security.spec.RSAKeyGenParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.*
 import javax.crypto.Cipher
@@ -173,6 +178,18 @@ class MyCredentialManager(private val context: Context) {
         keyPair = getStoredRSAKeyPair() ?: return
     }
 
+    private suspend fun getImmobilizer(immobilizerAddress: String): Immobilizer? {
+        return withContext(Dispatchers.IO) {
+            var immobilizer: Immobilizer? = null
+            context.database.use {
+                val result = select(Immobilizer.TABLE_IMMOBILIZER)
+                    .whereSimple("${Immobilizer.ADDRESS} = ?", immobilizerAddress)
+                immobilizer = result.parseOpt(immobilizerParser)
+            }
+            immobilizer
+        }
+    }
+
     // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
     fun getStoredKey(immobilizerAddress: String): SecretKey {
         var immobilizer: Immobilizer? = null
@@ -199,21 +216,22 @@ class MyCredentialManager(private val context: Context) {
 
     // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
     fun setStoredKey(immobilizerAddress: String, immobilizerName: String, newKey: SecretKey) {
-//        val newKeyStr: String = Base64.encodeToString(newKey.encoded, Base64.DEFAULT)
-        try {
-            val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-            cipher.init(Cipher.ENCRYPT_MODE, keyPair.public)
-            val encryptedKey = cipher.doFinal(newKey.encoded)
-            context.database.use {
-                replace(
-                    Immobilizer.TABLE_IMMOBILIZER,
-                    Immobilizer.ADDRESS to immobilizerAddress,
-                    Immobilizer.NAME to immobilizerName,
-                    Immobilizer.KEY to encryptedKey
-                )
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                cipher.init(Cipher.ENCRYPT_MODE, keyPair.public)
+                val encryptedKey = cipher.doFinal(newKey.encoded)
+                context.database.use {
+                    replace(
+                        Immobilizer.TABLE_IMMOBILIZER,
+                        Immobilizer.ADDRESS to immobilizerAddress,
+                        Immobilizer.NAME to immobilizerName,
+                        Immobilizer.KEY to encryptedKey
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "setStoredKey ERROR:", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "setStoredKey ERROR:", e)
         }
     }
 
