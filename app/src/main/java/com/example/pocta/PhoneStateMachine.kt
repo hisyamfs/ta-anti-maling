@@ -509,9 +509,9 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
             sm.updateUI("Password berhasil diperbaharui!")
         else
             sm.updateUI("Password gagal didaftarkan")
-        sm.updateDatabase()
         when (sm.userRequest) {
             USER_REQUEST.REGISTER_PHONE -> {
+                sm.updateDatabase()
                 sm.changeState(RegisterState(sm))
             }
             else -> {
@@ -552,6 +552,45 @@ class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
     }
 }
 
+class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
+    override fun onTransition() {
+        super.onTransition()
+        sm.updateUI("State: Key Exchange")
+    }
+
+    override fun onBTInput(bytes: ByteArray, len: Int) {
+        super.onBTInput(bytes, len)
+        val incomingMessage = String(bytes, 0, len)
+        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        when (incomingMessage) {
+            sm.ACK -> {
+                // Kunci berhasil didaftarkan, masukkan PIN baru
+                sm.enableEncryption()
+                sm.promptUserInput("Masukkan password baru anda!")
+//                sm.updateUI("To NewPinState")
+                sm.changeState(NewPinState(sm))
+            }
+            sm.NACK -> {
+                // Pertukaran kunci gagal
+//                sm.updateUI("To RequestState")
+                sm.changeState(RequestState(sm))
+            }
+            else -> {
+                // Dekripsi kunci dari device dan load
+                val myKey: SecretKey = sm.decryptSecretKey(bytes)
+                sm.disableEncryption()
+                sm.disableDecryption()
+                sm.setMyAESKey(myKey)
+            }
+        }
+    }
+
+    override fun onBTDisconnect() {
+        super.onBTDisconnect()
+        sm.changeState(DisconnectState(sm))
+    }
+}
+
 class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
@@ -588,45 +627,6 @@ class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTDisconnect() {
         sm.updateUI(BT_DISCONNECT_MSG)
 //        sm.updateUI("To DisconnectState")
-        sm.changeState(DisconnectState(sm))
-    }
-}
-
-class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
-    override fun onTransition() {
-        super.onTransition()
-        sm.updateUI("State: Key Exchange")
-    }
-
-    override fun onBTInput(bytes: ByteArray, len: Int) {
-        super.onBTInput(bytes, len)
-        val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
-        when (incomingMessage) {
-            sm.ACK -> {
-                // Kunci berhasil didaftarkan, masukkan PIN baru
-                sm.enableEncryption()
-                sm.promptUserInput("Masukkan password baru anda!")
-//                sm.updateUI("To NewPinState")
-                sm.changeState(NewPinState(sm))
-            }
-            sm.NACK -> {
-                // Pertukaran kunci gagal
-//                sm.updateUI("To RequestState")
-                sm.changeState(RequestState(sm))
-            }
-            else -> {
-                // Dekripsi kunci dari device dan load
-                val myKey: SecretKey = sm.decryptSecretKey(bytes)
-                sm.disableEncryption()
-                sm.disableDecryption()
-                sm.setMyAESKey(myKey)
-            }
-        }
-    }
-
-    override fun onBTDisconnect() {
-        super.onBTDisconnect()
         sm.changeState(DisconnectState(sm))
     }
 }
