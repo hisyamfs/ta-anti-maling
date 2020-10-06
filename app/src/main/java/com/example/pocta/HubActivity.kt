@@ -11,11 +11,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityHubBinding
+import kotlinx.coroutines.*
+import org.jetbrains.anko.custom.async
 import org.jetbrains.anko.db.BlobParser
 import org.jetbrains.anko.db.classParser
 import org.jetbrains.anko.db.select
+import kotlin.coroutines.CoroutineContext
 
-class HubActivity : AppCompatActivity() {
+class HubActivity : AppCompatActivity(), CoroutineScope {
     private lateinit var binding: ActivityHubBinding
     private var btAdapter: BluetoothAdapter? = null
     private var immobilizerAdapter: ImmobilizerAdapter? = null
@@ -27,12 +30,15 @@ class HubActivity : AppCompatActivity() {
         const val TAG = "HubActivity"
     }
 
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Main + job
+    private lateinit var job: Job
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        job = Job()
         binding = DataBindingUtil.setContentView(this, R.layout.activity_hub)
         ImmobilizerService.startService(this)
-        // refresh list
-        getImmobilizerList()
         val mLayoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         immobilizerAdapter = ImmobilizerAdapter(this, list)
 
@@ -42,18 +48,32 @@ class HubActivity : AppCompatActivity() {
                 adapter = immobilizerAdapter
             }
             enableBtButton.setOnClickListener { enableBluetooth() }
-            refreshListButton.setOnClickListener { listPairedDevices() }
+            refreshListButton.setOnClickListener {
+                launch {
+                    listPairedDevices()
+                }
+            }
             addImmobilizerButton.setOnClickListener { startRegisterActivity() }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        launch {
+            listPairedDevices()
         }
     }
 
     override fun onResume() {
         super.onResume()
-        listPairedDevices()
+        launch {
+            listPairedDevices()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        job.cancel()
         ImmobilizerService.stopService(this)
     }
 
@@ -88,19 +108,23 @@ class HubActivity : AppCompatActivity() {
         }
     }
 
-    private fun getImmobilizerList() {
-        try {
-            database.use {
-                val result = select(Immobilizer.TABLE_IMMOBILIZER)
-                list = result.parseList(immobilizerParser)
+    private suspend fun getImmobilizerList(): List<Immobilizer> {
+        return withContext(Dispatchers.IO) {
+            var rList: List<Immobilizer> = emptyList()
+            try {
+                database.use {
+                    val result = select(Immobilizer.TABLE_IMMOBILIZER)
+                    rList = result.parseList(immobilizerParser)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "getImmobilizerList ERROR:", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "getImmobilizerList ERROR:", e)
+            rList
         }
     }
 
-    private fun listPairedDevices() {
-        getImmobilizerList()
+    private suspend fun listPairedDevices() {
+        list = getImmobilizerList()
         immobilizerAdapter = ImmobilizerAdapter(this, list)
         immobilizerAdapter?.notifyDataSetChanged()
         binding.pairedDevicesList.adapter = immobilizerAdapter

@@ -509,12 +509,12 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
             sm.updateUI("Password berhasil diperbaharui!")
         else
             sm.updateUI("Password gagal didaftarkan")
+        sm.updateDatabase()
         when (sm.userRequest) {
             USER_REQUEST.REGISTER_PHONE -> {
                 sm.changeState(RegisterState(sm))
             }
             else -> {
-                sm.updateDatabase()
                 sm.userRequest = USER_REQUEST.NOTHING
                 sm.changeState(RequestState(sm))
             }
