@@ -1,41 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".HubActivity"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        tools:context=".HubActivity">
+
+        <TextView
+            android:id="@+id/hub_activity_status_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:textSize="16sp"
+            tools:text="Honda Beat: Unlocked" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="end">
+            android:gravity="end"
+            android:orientation="horizontal">
+
             <Button
+                android:id="@+id/addImmobilizerButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/addImmobilizerButton"
-                android:text="Tambah Immo"
-                android:layout_margin="8dp" />
+                android:layout_margin="8dp"
+                android:text="Tambah Immo" />
+
             <Button
                 android:id="@+id/enableBtButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Hidupkan BT"
-                android:layout_margin="8dp"/>
+                android:layout_margin="8dp"
+                android:text="Hidupkan BT" />
+
             <Button
                 android:id="@+id/refreshListButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/refreshListButton"
-                android:layout_margin="8dp" />
+                android:layout_margin="8dp"
+                android:text="@string/refreshListButton" />
         </LinearLayout>
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/pairedDevicesList"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_margin="8dp" />
+
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:text="Lihat Log"
+            android:id="@+id/hub_activity_view_log_button" />
     </LinearLayout>
 </layout>

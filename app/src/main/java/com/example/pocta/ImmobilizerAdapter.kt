@@ -5,7 +5,6 @@ import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.example.pocta.HubActivity.Companion.EXTRA_ADDRESS
 import com.example.pocta.databinding.ItemImmobilizerBinding
 
 class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) :
@@ -33,20 +32,28 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) 
                 itemImmoName.text = immobilizer.name
                 itemImmoAddress.text = immobilizer.address
                 itemUnlockDeviceButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(USER_REQUEST.UNLOCK, immobilizer.address)
-                    startConnectActivity(immobilizer.address)
+                    ImmobilizerService.sendRequest(
+                        USER_REQUEST.UNLOCK,
+                        immobilizer.address,
+                        immobilizer.name
+                    )
                 }
                 itemChangeUserPinButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(USER_REQUEST.CHANGE_PIN, immobilizer.address)
-                    startConnectActivity(immobilizer.address)
+                    ImmobilizerService.sendRequest(
+                        USER_REQUEST.CHANGE_PIN,
+                        immobilizer.address,
+                        immobilizer.name
+                    )
                 }
                 itemRemovePhoneButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(USER_REQUEST.REMOVE_PHONE, immobilizer.address)
-                    startConnectActivity(immobilizer.address)
+                    ImmobilizerService.sendRequest(
+                        USER_REQUEST.REMOVE_PHONE,
+                        immobilizer.address,
+                        immobilizer.name
+                    )
                 }
                 itemToggleConnectionButton.setOnClickListener {
-                    ImmobilizerService.toggleConnection(immobilizer.address)
-                    startConnectActivity(immobilizer.address)
+                    ImmobilizerService.toggleConnection(immobilizer.address, immobilizer.name)
                 }
                 itemRenameDeviceButton.setOnClickListener {
                     renameImmobilizer(immobilizer)
@@ -54,16 +61,11 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) 
             }
         }
 
-        private fun startConnectActivity(address: String) {
-            val startConnect: Intent = Intent(mContext, ConnectActivity::class.java).apply {
-                putExtra(EXTRA_ADDRESS, address)
-            }
-            mContext.startActivity(startConnect)
-        }
-
         private fun renameImmobilizer(immobilizer: Immobilizer) {
-//        TODO("Buat UI khusus untuk rename perangkat")
-            startConnectActivity(immobilizer.address)
+            val intent = Intent(mContext, RenameActivity::class.java).apply {
+                putExtra(IMMOBILIZER_SERVICE_ADDRESS, immobilizer.address)
+            }
+            mContext.startActivity(intent)
         }
     }
 }

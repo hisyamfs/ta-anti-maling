@@ -24,7 +24,7 @@ enum class USER_REQUEST(val reqString: String) {
     DISABLE("!5")
 }
 
-class BluetoothHandler(sm: PhoneStateMachine): Handler() {
+class BluetoothHandler(sm: PhoneStateMachine) : Handler() {
     private val rStateMachine = WeakReference<PhoneStateMachine>(sm)
     override fun handleMessage(msg: Message) {
         rStateMachine.get()?.apply {
@@ -60,9 +60,13 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
     private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair() ?: cm.getDefaultRSAKeyPair()
     private var myKey: SecretKey = cm.getDefaultSymmetricKey()
     private var appState: PhoneState = DisconnectState(this)
+
     companion object {
         const val TAG = "PhoneStateMachine"
-        const val MESSAGE_UI: Int = 0
+        const val MESSAGE_LOG: Int = 0
+        const val MESSAGE_STATUS: Int = 1
+        const val MESSAGE_PROMPT_PIN: Int = 2
+        const val MESSAGE_PROMPT_RENAME: Int = 3
     }
 
     /* Handle state transition */
@@ -73,17 +77,23 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
 
     /* FSM events */
     fun onBTInput(bytes: ByteArray, len: Int) = appState.onBTInput(bytes, len)
+
     fun onBTOutput(bytes: ByteArray) = appState.onBTOutput(bytes)
     fun onUserRequest(req: USER_REQUEST, device: BluetoothDevice? = null) {
         userRequest = req
         appState.onUserRequest()
     }
+
     fun onUserInput(bytes: ByteArray) = appState.onUserInput(bytes)
     fun onBTConnection() = appState.onBTConnection()
     fun onBTDisconnect() = appState.onBTDisconnect()
 
     /* Common methods for all states */
-    fun initConnection(device: BluetoothDevice, req: USER_REQUEST = USER_REQUEST.NOTHING) {
+    fun initConnection(
+        device: BluetoothDevice,
+        req: USER_REQUEST = USER_REQUEST.NOTHING,
+        custom_name: String? = null
+    ) {
         Log.i(TAG, "Initializing connection at ${device.address}")
         // Reset State and Connection
         disconnect()
@@ -91,8 +101,8 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
 //            appState = DisconnectState(this)
         // Set private variables
         btDevice = device
-        deviceName = device.name
-        deviceAddress = deviceAddress
+        deviceName = custom_name ?: device.name
+        deviceAddress = device.address
         userRequest = req
         myKey = cm.getStoredKey(btDevice!!.address)
         bt.apply {
@@ -116,21 +126,6 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
         bt.stop()
     }
 
-//    fun handleMessage(msg: Message) {
-//        when (msg.what) {
-//            MyBluetoothService.MESSAGE_READ -> {
-//                val incomingBytes = msg.obj as ByteArray
-//                onBTInput(incomingBytes, msg.arg1)
-//            }
-//            MyBluetoothService.MESSAGE_WRITE -> {
-//                val outgoingBytes = msg.obj as ByteArray
-//                onBTOutput(outgoingBytes)
-//            }
-//            MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
-//            MyBluetoothService.CONNECTION_START -> onBTConnection()
-//        }
-//    }
-
     // send unencrypted data to the device
     fun sendData(bytes: ByteArray) {
         disableEncryption()
@@ -143,22 +138,33 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
         disableEncryption()
     }
 
-    fun updateUI(str: String) {
-        extHandler.obtainMessage(MESSAGE_UI, str).sendToTarget()
+    fun updateLog(str: String) {
+        extHandler.obtainMessage(MESSAGE_LOG, str).sendToTarget()
     }
 
-    fun promptUserInput(str: String) {
-//        TODO("Ubah prompt menjadi tampilan lain")
-        updateUI(str)
+    fun updateStatus(status: String) {
+        val statusStr = "$deviceName:\n$status"
+        extHandler.obtainMessage(MESSAGE_STATUS, statusStr).sendToTarget()
+    }
+
+    fun promptUserPinInput(str: String) {
+        updateLog(str)
+        extHandler.obtainMessage(MESSAGE_PROMPT_PIN).sendToTarget()
+    }
+
+    fun promptUserNameInput(address: String?) {
+        val myAddress = address ?: "0"
+        updateLog("Renaming $myAddress")
+        extHandler.obtainMessage(MESSAGE_PROMPT_RENAME, myAddress).sendToTarget()
     }
 
     fun disableEncryption() {
-        updateUI("Encryption Off")
+        updateLog("Encryption Off")
         bt.useOutputEncryption = false
     }
 
     fun enableEncryption() {
-        updateUI("Encryption On")
+        updateLog("Encryption On")
         bt.useOutputEncryption = true
     }
 
@@ -168,12 +174,12 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
     }
 
     fun disableDecryption() {
-        updateUI("Decryption On")
+        updateLog("Decryption On")
         bt.useInputDecryption = false
     }
 
     fun enableDecryption() {
-        updateUI("Decryption Off")
+        updateLog("Decryption Off")
         bt.useInputDecryption = true
     }
 
@@ -238,7 +244,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
         val b64key = Base64.encodeToString(secretKeyByteArray, Base64.DEFAULT)
         val keyString = secretKeyByteArray.toString()
         val keyPrint = "Secret Key: \n$keyString \n$b64key"
-        updateUI(keyPrint)
+        updateLog(keyPrint)
 
         return SecretKeySpec(secretKeyByteArray, "AES")
     }
@@ -249,7 +255,7 @@ open class PhoneState(val sm: PhoneStateMachine) {
     open fun onBTInput(bytes: ByteArray, len: Int) {}
     open fun onBTOutput(bytes: ByteArray) {
         val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
+        sm.updateLog("You : $outgoingMessage")
     }
 
     open fun onUserRequest() {}
@@ -257,19 +263,19 @@ open class PhoneState(val sm: PhoneStateMachine) {
 
     open fun onBTConnection() {
         sm.isConnected = true
-        sm.updateUI(BT_CONNECT_MSG)
+        sm.updateLog(BT_CONNECT_MSG)
     }
 
     open fun onBTDisconnect() {
         sm.isConnected = false
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
     }
 }
 
 class DisconnectState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State: Disconnect")
+        sm.updateStatus("Disconnected")
     }
 
     override fun onUserRequest() {
@@ -290,12 +296,12 @@ class DisconnectState(sm: PhoneStateMachine) : PhoneState(sm) {
 class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State: Connect")
+        sm.updateStatus("Connecting")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         when (incomingMessage) {
             sm.ACK -> {
                 sm.changeState(RequestState(sm))
@@ -304,7 +310,7 @@ class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
                 sm.changeState(UnlockState(sm))
             }
             else -> {
-                sm.updateUI("HP anda tidak dikenal/belum terdaftar")
+                sm.updateLog("HP anda tidak dikenal/belum terdaftar")
                 // TODO("Lakukan penghapusan alamat device dari HP")
                 sm.changeState(DisconnectState(sm))
             }
@@ -321,14 +327,14 @@ class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
 class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State : Request")
+        sm.updateStatus("Connected, locked")
         if (sm.userRequest != USER_REQUEST.NOTHING)
             onUserRequest()
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
             if (sm.userRequest == USER_REQUEST.REGISTER_PHONE) {
 //                sm.updateUI("To KeyExchangeState")
@@ -339,13 +345,13 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
                 sm.changeState(ChallengeState(sm))
             }
         } else {
-            sm.updateUI("Request tidak dikenal atau belum diimplementasi")
+            sm.updateLog("Request tidak dikenal atau belum diimplementasi")
         }
     }
 
     override fun onBTOutput(bytes: ByteArray) {
         val outgoingMessage = String(bytes)
-        sm.updateUI("You : $outgoingMessage")
+        sm.updateLog("You : $outgoingMessage")
     }
 
     override fun onUserRequest() {
@@ -365,12 +371,12 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
 class ChallengeState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State : Challenge")
+        sm.updateStatus("Waiting for challenge")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = Base64.encodeToString(bytes, Base64.DEFAULT)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         sm.sendEncryptedData(bytes)
 //        sm.updateUI("To response state")
         sm.changeState(ResponseState(sm))
@@ -378,7 +384,7 @@ class ChallengeState(sm: PhoneStateMachine) : PhoneState(sm) {
 
     override fun onBTOutput(bytes: ByteArray) {
         val outgoingMessage = Base64.encodeToString(bytes, Base64.DEFAULT)
-        sm.updateUI("You : $outgoingMessage")
+        sm.updateLog("You : $outgoingMessage")
     }
 
     override fun onBTDisconnect() {
@@ -390,24 +396,24 @@ class ChallengeState(sm: PhoneStateMachine) : PhoneState(sm) {
 class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State : Response")
+        sm.updateStatus("Sending response")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
-            sm.promptUserInput("Masukkan password anda!")
+            sm.promptUserPinInput("Masukkan password anda!")
 //            sm.updateUI("To pin state")
             sm.changeState(PinState(sm))
         } else {
-            sm.updateUI("HP anda tidak dikenal\nTo AlarmState")
+            sm.updateLog("HP anda tidak dikenal\nTo AlarmState")
             sm.changeState(AlarmState(sm))
         }
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
         sm.changeState(DisconnectState(sm))
     }
 }
@@ -415,16 +421,16 @@ class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
 class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State : Pin")
+        sm.updateStatus("Enter your PIN")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         val oldRequest = sm.userRequest
         sm.userRequest = USER_REQUEST.NOTHING // cegah request berulang
         if (incomingMessage == sm.ACK) {
-            sm.updateUI("Password anda benar!")
+            sm.updateLog("Password anda benar!")
             when (oldRequest) {
                 USER_REQUEST.UNLOCK -> {
                     sm.disableEncryption()
@@ -432,7 +438,7 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
                 }
                 USER_REQUEST.CHANGE_PIN -> {
                     sm.enableEncryption()
-                    sm.promptUserInput("Masukkan password baru anda!")
+                    sm.promptUserPinInput("Masukkan password baru anda!")
                     sm.changeState(NewPinState(sm))
                 }
                 USER_REQUEST.REMOVE_PHONE -> {
@@ -446,7 +452,7 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
                 }
             }
         } else {
-            sm.updateUI("Password anda salah")
+            sm.updateLog("Password anda salah")
             sm.changeState(AlarmState(sm))
         }
     }
@@ -457,7 +463,7 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
         sm.changeState(DisconnectState(sm))
     }
 }
@@ -465,7 +471,7 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
 class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State : Unlock")
+        sm.updateStatus("Unlocked")
         // Sebelum state ini dipanggil dari state pin, sharusnya request sudah clear.
         // Jika tidak, berarti state dipanggil dari state unlock-disconnected, yg berarti
         // pengguna meminta immobilizer kembali ke posisi lock
@@ -475,7 +481,7 @@ class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         when (incomingMessage) {
             sm.ACK -> {
                 sm.userRequest = USER_REQUEST.NOTHING
@@ -491,7 +497,7 @@ class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
         sm.changeState(DisconnectState(sm))
     }
 }
@@ -499,16 +505,16 @@ class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
 class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State: New Pin")
+        sm.updateStatus("Enter your new PIN")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK)
-            sm.updateUI("Password berhasil diperbaharui!")
+            sm.updateLog("Password berhasil diperbaharui!")
         else
-            sm.updateUI("Password gagal didaftarkan")
+            sm.updateLog("Password gagal didaftarkan")
         when (sm.userRequest) {
             USER_REQUEST.REGISTER_PHONE -> {
                 sm.updateDatabase()
@@ -527,7 +533,7 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
         sm.changeState(DisconnectState(sm))
     }
 }
@@ -535,19 +541,14 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
 class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("Masukkan plat motor atau pengenal lainnya sebagai nama perangkat!")
-    }
-
-    override fun onUserInput(bytes: ByteArray) {
-        super.onUserInput(bytes)
-        sm.updateDatabase(String(bytes))
-        sm.updateUI("Nama berhasil diubah!")
+        sm.promptUserNameInput(sm.deviceAddress)
+        sm.updateStatus("Registering device")
         sm.userRequest = USER_REQUEST.NOTHING
         sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
         sm.changeState(DisconnectState(sm))
     }
 }
@@ -555,18 +556,18 @@ class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
 class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State: Key Exchange")
+        sm.updateStatus("Exchanging key")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         super.onBTInput(bytes, len)
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         when (incomingMessage) {
             sm.ACK -> {
                 // Kunci berhasil didaftarkan, masukkan PIN baru
                 sm.enableEncryption()
-                sm.promptUserInput("Masukkan password baru anda!")
+                sm.promptUserPinInput("Masukkan password baru anda!")
 //                sm.updateUI("To NewPinState")
                 sm.changeState(NewPinState(sm))
             }
@@ -594,18 +595,17 @@ class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
 class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("State: Delete")
+        sm.updateStatus("Deleting account")
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
-        sm.updateUI("${sm.deviceName} : $incomingMessage")
+        sm.updateLog("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
-            // TODO("Lakukan penghapusan akun terdaftar di HP juga")
-            sm.updateUI("Akun berhasil dihapus!")
+            sm.updateLog("Akun berhasil dihapus!")
             sm.deleteAccount()
         } else {
-            sm.updateUI("Akun gagal dihapus!")
+            sm.updateLog("Akun gagal dihapus!")
         }
         sm.userRequest = USER_REQUEST.NOTHING
         sm.changeState(RequestState(sm))
@@ -620,12 +620,12 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
 class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateUI("ALARM ON!!!")
+        sm.updateStatus("ALARM ON!")
         sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
-        sm.updateUI(BT_DISCONNECT_MSG)
+        sm.updateLog(BT_DISCONNECT_MSG)
 //        sm.updateUI("To DisconnectState")
         sm.changeState(DisconnectState(sm))
     }

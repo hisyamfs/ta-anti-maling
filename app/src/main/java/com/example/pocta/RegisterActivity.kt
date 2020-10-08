@@ -83,7 +83,7 @@ class RegisterActivity : AppCompatActivity() {
                         if (selectedAddress != null) {
                             ImmobilizerService.sendRequest(USER_REQUEST.REGISTER_PHONE, selectedAddress)
                             val startConnect =
-                                Intent(this@RegisterActivity, ConnectActivity::class.java).apply {
+                                Intent(this@RegisterActivity, LogActivity::class.java).apply {
                                     putExtra(EXTRA_ADDRESS, selectedAddress)
                                 }
                             startActivity(startConnect)

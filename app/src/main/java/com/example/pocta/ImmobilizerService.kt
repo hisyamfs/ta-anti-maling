@@ -12,21 +12,38 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Message
-import android.widget.Toast
-import androidx.core.app.ActivityCompat.startActivityForResult
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.example.pocta.ImmobilizerService.Companion.immobilizerData
+import com.example.pocta.ImmobilizerService.Companion.immobilizerStatus
 import java.lang.ref.WeakReference
+
+const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.NEW_DATA"
+const val IMMOBILIZER_SERVICE_LOG = "com.example.pocta.ImmobilizerService.LOG"
+const val IMMOBILIZER_SERVICE_STATUS = "com.example.pocta.ImmobilizerService.STATUS"
+const val IMMOBILIZER_SERVICE_ADDRESS = "com.example.pocta.ImmobilizerService.ADDRESS"
 
 class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
     private val hService = WeakReference<ImmobilizerService>(service)
     override fun handleMessage(msg: Message) {
         hService.get()?.apply {
             when (msg.what) {
-                PhoneStateMachine.MESSAGE_UI -> {
-                    immobilizerData = msg.obj as String
-                    sendResult(immobilizerData)
+                PhoneStateMachine.MESSAGE_LOG -> {
+                    val newLog = msg.obj as String
+                    immobilizerData = "$immobilizerData\n$newLog"
+                    sendResult(IMMOBILIZER_SERVICE_LOG, immobilizerData)
+                }
+                PhoneStateMachine.MESSAGE_STATUS -> {
+                    immobilizerStatus = msg.obj as String
+                    sendResult(IMMOBILIZER_SERVICE_STATUS, immobilizerStatus)
+                }
+                PhoneStateMachine.MESSAGE_PROMPT_PIN -> {
+                    activatePinScreen()
+                }
+                PhoneStateMachine.MESSAGE_PROMPT_RENAME -> {
+                    val address: String = msg.obj as String
+                    activateRenameScreen(address)
                 }
             }
         }
@@ -34,19 +51,16 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
 }
 
 class ImmobilizerService : Service() {
-    private var immobilizerStatus: String = "Uhuy!"
-    var immobilizerData: String = ""
     private lateinit var smHandler: Handler
     private lateinit var broadcastManager: LocalBroadcastManager
-
     companion object {
         const val REQUEST_ENABLE_BT = 1
         const val CHANNEL_ID = "ImmobilizerService"
-        const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.NEW_DATA"
-        const val IMMOBILIZER_SERVICE_DATA = "com.example.pocta.ImmobilizerService.DATA"
         lateinit var btAdapter: BluetoothAdapter
         lateinit var btDevice: BluetoothDevice
         lateinit var immobilizerController: PhoneStateMachine
+        var immobilizerStatus: String = "Uhuy!"
+        var immobilizerData: String = ""
 
         fun startService(context: Context) {
             val startIntent = Intent(context, ImmobilizerService::class.java)
@@ -60,7 +74,8 @@ class ImmobilizerService : Service() {
 
         private fun initConnection(
             address: String,
-            initRequest: USER_REQUEST = USER_REQUEST.NOTHING
+            initRequest: USER_REQUEST = USER_REQUEST.NOTHING,
+            name: String? = null
         ) {
             if (btAdapter.isEnabled) {
                 btDevice = btAdapter.getRemoteDevice(address)
@@ -68,21 +83,25 @@ class ImmobilizerService : Service() {
             }
         }
 
-        fun toggleConnection(address: String, alwaysDisconnect: Boolean = false) {
+        fun toggleConnection(
+            address: String,
+            name: String? = null,
+            alwaysDisconnect: Boolean = false
+        ) {
             if (alwaysDisconnect || immobilizerController.isConnected)
                 immobilizerController.disconnect()
             else
-                initConnection(address)
+                initConnection(address, USER_REQUEST.NOTHING, name)
         }
 
         fun sendData(bytes: ByteArray) = immobilizerController.onUserInput(bytes)
 
-        fun sendRequest(request: USER_REQUEST, address: String) {
+        fun sendRequest(request: USER_REQUEST, address: String, name: String? = null) {
             if (immobilizerController.isConnected && address == immobilizerController.deviceAddress) {
                 immobilizerController.onUserRequest(request)
-            } else if (btAdapter.isEnabled){
+            } else if (btAdapter.isEnabled) {
                 btDevice = btAdapter.getRemoteDevice(address)
-                immobilizerController.initConnection(btDevice, request)
+                immobilizerController.initConnection(btDevice, request, name)
             }
         }
     }
@@ -133,9 +152,24 @@ class ImmobilizerService : Service() {
         }
     }
 
-    fun sendResult(message: String) {
-        val intent = Intent(IMMOBILIZER_SERVICE_NEW_DATA)
-            .putExtra(IMMOBILIZER_SERVICE_DATA, message)
+    fun sendResult(message: String, type: String) {
+        val intent = Intent(type)
+            .putExtra(type, message)
         broadcastManager.sendBroadcast(intent)
+    }
+
+    fun activateRenameScreen(address: String) {
+        val flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        val intent = Intent(this, RenameActivity::class.java)
+            .putExtra(IMMOBILIZER_SERVICE_ADDRESS, address)
+            .addFlags(flags)
+        startActivity(intent)
+    }
+
+    fun activatePinScreen() {
+        val flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        val intent = Intent(this, PinActivity::class.java)
+            .addFlags(flags)
+        startActivity(intent)
     }
 }

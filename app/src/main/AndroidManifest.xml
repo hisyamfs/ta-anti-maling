@@ -14,15 +14,18 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <activity android:name=".RenameActivity"></activity>
+        <activity android:name=".PinActivity" />
 
         <service android:name=".ImmobilizerService" />
         <service android:name=".MyBluetoothService" />
 
         <activity android:name=".RegisterActivity" />
-        <activity android:name=".ConnectActivity" />
+        <activity android:name=".LogActivity" />
         <activity android:name=".HubActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
