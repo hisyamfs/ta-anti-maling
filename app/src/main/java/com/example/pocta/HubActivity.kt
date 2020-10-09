@@ -7,15 +7,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityHubBinding
-import kotlinx.coroutines.*
-import org.jetbrains.anko.db.select
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 class HubActivity : AppCompatActivity(), CoroutineScope {
@@ -75,11 +76,15 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
                 receiver,
                 IntentFilter(IMMOBILIZER_SERVICE_STATUS)
             )
+        binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
+        launch {
+            listPairedDevices()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
+//        binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
         launch {
             listPairedDevices()
         }
@@ -135,23 +140,8 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
         }
     }
 
-    private suspend fun getImmobilizerList(): List<Immobilizer> {
-        return withContext(Dispatchers.IO) {
-            var rList: List<Immobilizer> = emptyList()
-            try {
-                database.use {
-                    val result = select(Immobilizer.TABLE_IMMOBILIZER)
-                    rList = result.parseList(immobilizerParser)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "getImmobilizerList ERROR:", e)
-            }
-            rList
-        }
-    }
-
     private suspend fun listPairedDevices() {
-        list = getImmobilizerList()
+        list = getImmobilizerList(this)
         immobilizerAdapter = ImmobilizerAdapter(this, list)
         immobilizerAdapter?.notifyDataSetChanged()
         binding.pairedDevicesList.adapter = immobilizerAdapter

@@ -7,6 +7,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import com.example.pocta.MyCredentialManager.Companion.TAG
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -254,4 +255,19 @@ fun hasMarshmallow(): Boolean {
 
 fun hasKitkat(): Boolean {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT
+}
+
+suspend fun getImmobilizerList(context: Context): List<Immobilizer> {
+    return withContext(Dispatchers.IO) {
+        var rList: List<Immobilizer> = emptyList()
+        try {
+            context.database.use {
+                val result = select(Immobilizer.TABLE_IMMOBILIZER)
+                rList = result.parseList(immobilizerParser)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getImmobilizerList ERROR:", e)
+        }
+        rList
+    }
 }
