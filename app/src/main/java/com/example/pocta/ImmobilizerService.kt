@@ -53,6 +53,7 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
 class ImmobilizerService : Service() {
     private lateinit var smHandler: Handler
     private lateinit var broadcastManager: LocalBroadcastManager
+
     companion object {
         const val REQUEST_ENABLE_BT = 1
         const val CHANNEL_ID = "ImmobilizerService"
@@ -113,11 +114,15 @@ class ImmobilizerService : Service() {
         smHandler = ImmobilizerHandler(this)
         immobilizerController = PhoneStateMachine(this, smHandler)
         btAdapter = BluetoothAdapter.getDefaultAdapter().apply { enable() }
+    }
 
-        val pendingIntent: PendingIntent =
-            Intent(this, HubActivity::class.java).let { notificationIntent ->
-                PendingIntent.getActivity(this, 0, notificationIntent, 0)
-            }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        createNotificationChannel()
+        val notificationIntent = Intent(this, HubActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0, notificationIntent, 0
+        )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Foreground Service Immobilizer")
@@ -126,9 +131,6 @@ class ImmobilizerService : Service() {
             .build()
 
         startForeground(1, notification)
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return START_NOT_STICKY
     }
 
@@ -147,7 +149,8 @@ class ImmobilizerService : Service() {
                 CHANNEL_ID, "Foreground Service Immobilizer",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
-            val manager = getSystemService(NotificationManager::class.java)
+            val manager =
+                getSystemService(NotificationManager::class.java)
             manager!!.createNotificationChannel(serviceChannel)
         }
     }
