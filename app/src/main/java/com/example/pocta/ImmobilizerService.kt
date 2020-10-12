@@ -8,13 +8,11 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.os.Handler
-import android.os.IBinder
-import android.os.Message
+import android.content.ServiceConnection
+import android.os.*
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.lifecycle.MutableLiveData
 import com.example.pocta.ImmobilizerService.Companion.immobilizerData
 import com.example.pocta.ImmobilizerService.Companion.immobilizerStatus
 import java.lang.ref.WeakReference
@@ -32,11 +30,13 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
                 PhoneStateMachine.MESSAGE_LOG -> {
                     val newLog = msg.obj as String
                     immobilizerData = "$immobilizerData\n$newLog"
-                    sendResult(IMMOBILIZER_SERVICE_LOG, immobilizerData)
+                    immobilizerDataLD.postValue(immobilizerData)
+//                    sendResult(IMMOBILIZER_SERVICE_LOG, immobilizerData)
                 }
                 PhoneStateMachine.MESSAGE_STATUS -> {
                     immobilizerStatus = msg.obj as String
-                    sendResult(IMMOBILIZER_SERVICE_STATUS, immobilizerStatus)
+                    immobilizerStatusLD.postValue(immobilizerStatus)
+//                    sendResult(IMMOBILIZER_SERVICE_STATUS, immobilizerStatus)
                 }
                 PhoneStateMachine.MESSAGE_PROMPT_PIN -> {
                     activatePinScreen()
@@ -51,8 +51,12 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
 }
 
 class ImmobilizerService : Service() {
+    private var isStarted = false
     private lateinit var smHandler: Handler
-    private lateinit var broadcastManager: LocalBroadcastManager
+//    private lateinit var broadcastManager: LocalBroadcastManager
+    private val imBinder: IBinder = ImmobilizerBinder()
+    val immobilizerStatusLD: MutableLiveData<String> = MutableLiveData()
+    val immobilizerDataLD: MutableLiveData<String> = MutableLiveData()
 
     companion object {
         const val REQUEST_ENABLE_BT = 1
@@ -66,6 +70,11 @@ class ImmobilizerService : Service() {
         fun startService(context: Context) {
             val startIntent = Intent(context, ImmobilizerService::class.java)
             ContextCompat.startForegroundService(context, startIntent)
+        }
+
+        fun bindService(context: Context, connection: ServiceConnection) {
+            val bindIntent = Intent(context, ImmobilizerService::class.java)
+            context.bindService(bindIntent, connection, Context.BIND_AUTO_CREATE)
         }
 
         fun stopService(context: Context) {
@@ -110,37 +119,35 @@ class ImmobilizerService : Service() {
     override fun onCreate() {
         super.onCreate()
         // TODO("Refactor PhoneStateMachine agar tidak ter-couple ke TextView langsung")
-        broadcastManager = LocalBroadcastManager.getInstance(this)
+//        broadcastManager = LocalBroadcastManager.getInstance(this)
         smHandler = ImmobilizerHandler(this)
         immobilizerController = PhoneStateMachine(this, smHandler)
         btAdapter = BluetoothAdapter.getDefaultAdapter().apply { enable() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        createNotificationChannel()
-        val notificationIntent = Intent(this, HubActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0, notificationIntent, 0
-        )
-
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Foreground Service Immobilizer")
-            .setContentText(immobilizerStatus)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        startForeground(1, notification)
+        if (!isStarted) {
+            startNotification()
+            isStarted = true
+        }
         return START_NOT_STICKY
     }
 
+    inner class ImmobilizerBinder: Binder() {
+        fun getService(): ImmobilizerService = this@ImmobilizerService
+    }
+
     override fun onBind(intent: Intent): IBinder? {
-        return null
+        if (!isStarted) {
+            startNotification()
+            isStarted = true
+        }
+        return imBinder
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         immobilizerController.disconnect()
+        super.onDestroy()
     }
 
     private fun createNotificationChannel() {
@@ -155,11 +162,28 @@ class ImmobilizerService : Service() {
         }
     }
 
-    fun sendResult(message: String, type: String) {
-        val intent = Intent(type)
-            .putExtra(type, message)
-        broadcastManager.sendBroadcast(intent)
+    private fun startNotification() {
+        createNotificationChannel()
+        val notificationIntent = Intent(this, HubActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0, notificationIntent, 0
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Foreground Service Immobilizer")
+            .setContentText("Is Running")
+            .setContentIntent(pendingIntent)
+            .build()
+
+        startForeground(1, notification)
     }
+
+//    fun sendResult(message: String, type: String) {
+//        val intent = Intent(type)
+//            .putExtra(type, message)
+//        broadcastManager.sendBroadcast(intent)
+//    }
 
     fun activateRenameScreen(address: String) {
         val flags = Intent.FLAG_ACTIVITY_NEW_TASK

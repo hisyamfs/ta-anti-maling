@@ -3,14 +3,16 @@ package com.example.pocta
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.content.BroadcastReceiver
-import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
-import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityHubBinding
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +27,8 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
     private var immobilizerAdapter: ImmobilizerAdapter? = null
     private var list: List<Immobilizer> = emptyList()
     private val REQUEST_ENABLE_BT = 1
+    private lateinit var imsInstance: ImmobilizerService
+    private var isIMSBound = false
 
     companion object {
         const val EXTRA_ADDRESS: String = "com.example.pocta.hub.EXTRA_ADDRESS"
@@ -34,6 +38,31 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
     private lateinit var job: Job
+
+    private val imsConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder =
+                service as ImmobilizerService.ImmobilizerBinder
+            imsInstance = binder.getService()
+            isIMSBound = true
+            attachImmobilizerObserver()
+            Log.i(TAG, "Immobilizer Service Bound")
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isIMSBound = false
+            Log.i(TAG, "Immobilizer Service Unbound")
+        }
+    }
+
+    private fun attachImmobilizerObserver() {
+        imsInstance.immobilizerStatusLD.observe(
+            this,
+            Observer {
+                binding.hubActivityStatusView.text = it
+            }
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,20 +91,22 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
         }
 
-        receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
-            }
-        }
+        ImmobilizerService.bindService(this, imsConnection)
+
+//        receiver = object : BroadcastReceiver() {
+//            override fun onReceive(context: Context?, intent: Intent?) {
+//                binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
+//            }
+//        }
     }
 
     override fun onStart() {
         super.onStart()
-        LocalBroadcastManager.getInstance(this)
-            .registerReceiver(
-                receiver,
-                IntentFilter(IMMOBILIZER_SERVICE_STATUS)
-            )
+//        LocalBroadcastManager.getInstance(this)
+//            .registerReceiver(
+//                receiver,
+//                IntentFilter(IMMOBILIZER_SERVICE_STATUS)
+//            )
         binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
         launch {
             listPairedDevices()
@@ -90,16 +121,17 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
         }
     }
 
-    override fun onStop() {
-        LocalBroadcastManager.getInstance(this)
-            .unregisterReceiver(receiver)
-        super.onStop()
-    }
+//    override fun onStop() {
+////        LocalBroadcastManager.getInstance(this)
+////            .unregisterReceiver(receiver)
+//        super.onStop()
+//    }
 
     override fun onDestroy() {
-        super.onDestroy()
         job.cancel()
+        unbindService(imsConnection)
         ImmobilizerService.stopService(this)
+        super.onDestroy()
     }
 
     private fun startLogActivity() {
