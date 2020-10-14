@@ -26,6 +26,10 @@ import javax.crypto.spec.SecretKeySpec
 import javax.security.auth.x500.X500Principal
 import kotlin.math.abs
 
+/**
+ * Database and encryption key management class
+ * @param context Context of the caller
+ */
 class MyCredentialManager(private val context: Context) {
     private val defPubKeyString = """
     -----BEGIN PUBLIC KEY-----
@@ -88,6 +92,11 @@ class MyCredentialManager(private val context: Context) {
         return keyStore
     }
 
+    /**
+     * Get default, hard-coded RSA key pair
+     * @return RSA keypair, hard-coded
+     * @note Use at your own risk
+     */
     fun getDefaultRSAKeyPair() : KeyPair {
         Log.i(TAG, "Getting default RSA keypair")
         val keyFactory = KeyFactory.getInstance("RSA")
@@ -100,11 +109,22 @@ class MyCredentialManager(private val context: Context) {
         return KeyPair(publicKey, privateKey)
     }
 
+    /**
+     * Get default AES key
+     * @return Hard-coded AES key
+     * @note Use at your own risk
+     */
     fun getDefaultSymmetricKey(): SecretKey {
         val secretKeyByteArray = ByteArray(16) { _ -> 0} // 16-byte array of zeroes
         return SecretKeySpec(secretKeyByteArray, "AES")
     }
 
+    /**
+     * Get stored RSA key pair
+     * @return RSA key pair in the Android KeyStore. Null if fails to retrieve
+     * @note Will create a new RSA keypair if it didn't exist, and store it in Android KeyStore
+     * @note duh.
+     */
     fun getStoredRSAKeyPair() : KeyPair? {
         val keyStore = createKeyStore()
         val privateKey = keyStore.getKey(KEY_ALIAS, null) as PrivateKey?
@@ -174,6 +194,11 @@ class MyCredentialManager(private val context: Context) {
         ks.deleteEntry(KEY_ALIAS)
     }
 
+    /**
+     * Reset stored RSA key pair in the Android KeyStore
+     * @note Will call {@link #getStoredRSAKeyPair} at the end of the function call, and
+     * store the result in a private variable
+     */
     fun resetStoredRSAKeyPair() {
         removeStoredRSAKeyPair()
         keyPair = getStoredRSAKeyPair() ?: return
@@ -191,7 +216,12 @@ class MyCredentialManager(private val context: Context) {
         }
     }
 
-    // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
+    /**
+     * Get stored AES key in immobilizer device database
+     * @param immobilizerAddress Address of the device
+     * @return AES key of the device
+     * @note If somehow there's an error, will return default key
+     */
     fun getStoredKey(immobilizerAddress: String): SecretKey {
         var immobilizer: Immobilizer? = null
         context.database.use {
@@ -215,7 +245,14 @@ class MyCredentialManager(private val context: Context) {
         }
     }
 
-    // TODO("Ubah penyimpanan cipher key tidak menggunakan plaintext")
+    /**
+     * Add a new device, or update existing device, of an immobilized in
+     * immobilizer device database
+     * @param immobilizerAddress Address of the device
+     * @param immobilizerName User facing name of the device
+     * @param newKey AES key of the device
+     * @note If somehow there's an error, will return default key. Stealth error danger.
+     */
     fun setStoredKey(immobilizerAddress: String, immobilizerName: String, newKey: SecretKey) {
         GlobalScope.launch(Dispatchers.IO) {
             try {
@@ -236,6 +273,10 @@ class MyCredentialManager(private val context: Context) {
         }
     }
 
+    /**
+     * Delete an immobilizer from immobilizer device database
+     * @param immobilizerAddress address of the device to be deleted
+     */
     fun deleteAccount(immobilizerAddress: String): Int {
         var numDeleted: Int = 0
         context.database.use {
@@ -257,6 +298,11 @@ fun hasKitkat(): Boolean {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT
 }
 
+/**
+ * Get a list of all immobilizers in the database
+ * @param context Context of the caller
+ * @return List of the immobilizers in the database, returns empty list if it didn't exist.
+ */
 suspend fun getImmobilizerList(context: Context): List<Immobilizer> {
     return withContext(Dispatchers.IO) {
         var rList: List<Immobilizer> = emptyList()

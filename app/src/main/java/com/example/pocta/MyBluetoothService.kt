@@ -6,8 +6,6 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import android.content.res.Resources
-import android.os.Bundle
 import android.os.Handler
 import android.util.Base64
 import android.util.Log
@@ -15,14 +13,17 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.Charset
-import java.security.PrivateKey
-import java.security.PublicKey
 import java.util.*
 import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.IllegalBlockSizeException
 import javax.crypto.SecretKey
 
+/**
+ * Class to handle bluetooth communication.
+ * @param context Context of service caller
+ * @param handler Service caller's handler, to notify caller of new data
+ */
 class MyBluetoothService(context: Context, handler: Handler) {
     private var btAdapter: BluetoothAdapter? = null
     private var btAcceptThread: AcceptThread? = null
@@ -63,6 +64,10 @@ class MyBluetoothService(context: Context, handler: Handler) {
         btHandler = handler
     }
 
+    /**
+     * Start bluetooth communication as a server
+     * @note Cancel ongoing connection
+     */
     @Synchronized
     fun start() {
         Log.d(TAG, "start")
@@ -75,6 +80,12 @@ class MyBluetoothService(context: Context, handler: Handler) {
         }
     }
 
+    /**
+     * Start bluetooth communication as a client
+     * @param device Target client
+     * @param uuid Client UUID
+     * @note Cancel ongoing connection
+     */
     fun startClient(device: BluetoothDevice?, uuid: UUID) {
         Log.d(TAG, "start client: started")
         // Cancel any running threads
@@ -84,6 +95,13 @@ class MyBluetoothService(context: Context, handler: Handler) {
         btConnectThread?.start()
     }
 
+    /**
+     * Start a connected thread
+     * @param socket Socket of the connection
+     * @param device Target device
+     * @note Don't ever use the device parameter, it has worked fine without, and
+     * it's never called in the function
+     */
     fun connected(socket: BluetoothSocket?, device: BluetoothDevice?) {
         Log.d(TAG, "connected: starting....")
         // Start the thread
@@ -91,6 +109,9 @@ class MyBluetoothService(context: Context, handler: Handler) {
         btConnectedThread?.start()
     }
 
+    /**
+     * Stop ongoing connection, if it exists
+     */
     fun stop() {
         // Cancel any thread
         if (btConnectThread != null) {
@@ -112,15 +133,30 @@ class MyBluetoothService(context: Context, handler: Handler) {
         btState = STATE_NONE
     }
 
+    /**
+     * Send data
+     * @param bytes Data to be sent
+     */
     fun write(bytes: ByteArray) {
         Log.d(TAG, "write: write called.")
         btConnectedThread?.write(bytes)
     }
 
+    /**
+     * Set AES key for communication encryption and decryption
+     * @param key The AES key to be used
+     */
     fun setAESKey(key: SecretKey) {
         btEncryptionKey = key
     }
 
+    /**
+     * Encrypt a data with AES
+     * @param bytes Data to encrypt
+     * @return AES-encrypted data
+     * @note Uses ECB block cipher mode, so never use this on data bigger than 16 bytes.
+     * @note Uses null padding.
+     */
     @SuppressLint("GetInstance")
     fun btEncrypt(bytes: ByteArray): ByteArray {
         if (btEncryptionKey != null) {
@@ -157,6 +193,13 @@ class MyBluetoothService(context: Context, handler: Handler) {
         } else return "Encryption Key not Found".toByteArray()
     }
 
+    /**
+     * Decrypt a data with AES
+     * @param bytes Data to decrypt
+     * @return AES-decrypted data
+     * @note Uses ECB block cipher mode, so never use this on data bigger than 16 bytes.
+     * @note Uses null padding.
+     */
     @SuppressLint("GetInstance")
     fun btDecrypt(bytes: ByteArray): ByteArray {
         if (btEncryptionKey != null) {
