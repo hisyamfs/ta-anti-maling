@@ -297,6 +297,7 @@ class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Connecting")
+        sm.sendData(sm.ACK.toByteArray())
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
