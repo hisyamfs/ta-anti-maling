@@ -67,21 +67,40 @@ class ImmobilizerService : Service() {
         var immobilizerStatus: String = "Uhuy!"
         var immobilizerData: String = ""
 
+        /**
+         * Start the service
+         * @param context Context of the caller
+         */
         fun startService(context: Context) {
             val startIntent = Intent(context, ImmobilizerService::class.java)
             ContextCompat.startForegroundService(context, startIntent)
         }
 
+        /**
+         * Bind the service to an activity
+         * @param context Context of the activity
+         * @param connection ServiceConnection object in the activity
+         */
         fun bindService(context: Context, connection: ServiceConnection) {
             val bindIntent = Intent(context, ImmobilizerService::class.java)
             context.bindService(bindIntent, connection, Context.BIND_AUTO_CREATE)
         }
 
+        /**
+         * Stop the service
+         * @param context Context of the caller
+         */
         fun stopService(context: Context) {
             val stopIntent = Intent(context, ImmobilizerService::class.java)
             context.stopService(stopIntent)
         }
 
+        /**
+         * Initialize a connection to an immobilizer device
+         * @param address Address of the immobilizer
+         * @param initRequest Initial request to be made after the connection is established
+         * @param name User-facing name of the immobilizer
+         */
         private fun initConnection(
             address: String,
             initRequest: USER_REQUEST = USER_REQUEST.NOTHING,
@@ -93,6 +112,12 @@ class ImmobilizerService : Service() {
             }
         }
 
+        /**
+         * Toggle a connection to an immobilizer device
+         * @param address Address of the immobilizer
+         * @param name User-facing name of the immobilizer
+         * @param alwaysDisconnect If true, will allways terminate the connection to the immobilizer
+         */
         fun toggleConnection(
             address: String,
             name: String? = null,
@@ -104,8 +129,20 @@ class ImmobilizerService : Service() {
                 initConnection(address, USER_REQUEST.NOTHING, name)
         }
 
+        /**
+         * Send data to an immobilizer device
+         * @param bytes The data to be sent
+         */
         fun sendData(bytes: ByteArray) = immobilizerController.onUserInput(bytes)
 
+        /**
+         * Send a request to an immobilizer device
+         * @param request Request to be sent
+         * @param address Address of the immobilizer device
+         * @param name User-facing name of the immobilizer
+         * @note Will initialize a connection if user's phone isn't connected yet to
+         * the immobilizer with the specified address
+         */
         fun sendRequest(request: USER_REQUEST, address: String, name: String? = null) {
             if (immobilizerController.isConnected && address == immobilizerController.deviceAddress) {
                 immobilizerController.onUserRequest(request)
@@ -185,6 +222,10 @@ class ImmobilizerService : Service() {
 //        broadcastManager.sendBroadcast(intent)
 //    }
 
+    /**
+     * Show the device naming promp
+     * @param address Address of the immobilizer to be named
+     */
     fun activateRenameScreen(address: String) {
         val flags = Intent.FLAG_ACTIVITY_NEW_TASK
         val intent = Intent(this, RenameActivity::class.java)
@@ -193,6 +234,9 @@ class ImmobilizerService : Service() {
         startActivity(intent)
     }
 
+    /**
+     * Show the PIN prompt
+     */
     fun activatePinScreen() {
         val flags = Intent.FLAG_ACTIVITY_NEW_TASK
         val intent = Intent(this, PinActivity::class.java)
