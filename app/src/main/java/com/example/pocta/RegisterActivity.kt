@@ -14,6 +14,7 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityRegisterBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,8 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
     private lateinit var registeredImmobilizers: List<Immobilizer>
     private lateinit var registeredAddresses: MutableSet<String>
     private lateinit var listAdapter: ArrayAdapter<BluetoothDevice>
+    private lateinit var unregisteredAdapter: UnregisteredImmobilizerAdapter
+    private var uImmobilizers: MutableList<UnregisteredImmobilizer> = mutableListOf()
 
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
@@ -45,6 +48,13 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
             android.R.layout.simple_list_item_1,
             emptyList()
         )
+        val mLayoutManager = LinearLayoutManager(
+            this,
+            LinearLayoutManager.VERTICAL, false
+        )
+
+        unregisteredAdapter = UnregisteredImmobilizerAdapter(this, emptyList())
+
         binding.apply {
             registerEnableBtButton.setOnClickListener { enableBT() }
             registerRefreshListButton.setOnClickListener {
@@ -55,25 +65,29 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
             if (btAdapter == null) {
                 registerEnableBtButton.isEnabled = false
                 registerRefreshListButton.isEnabled = false
+
             }
-            unregisteredDeviceList.adapter = listAdapter
-            unregisteredDeviceList.visibility = View.VISIBLE
-            unregisteredDeviceList.setOnItemClickListener { _, _, position, _ ->
-                val selectedDevice =
-                    unregisteredDeviceList.getItemAtPosition(position) as BluetoothDevice
-                if (selectedDevice.address != null) {
-                    ImmobilizerService.sendRequest(
-                        USER_REQUEST.REGISTER_PHONE,
-                        selectedDevice.address
-                    )
-                } else {
-                    Toast.makeText(
-                        this@RegisterActivity, "Null Address????",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-                finish()
-            }
+            unregisteredDeviceRList.layoutManager = mLayoutManager
+            unregisteredDeviceRList.adapter = unregisteredAdapter
+
+//            unregisteredDeviceList.adapter = listAdapter
+            unregisteredDeviceList.visibility = View.GONE
+//            unregisteredDeviceList.setOnItemClickListener { _, _, position, _ ->
+//                val selectedDevice =
+//                    unregisteredDeviceList.getItemAtPosition(position) as BluetoothDevice
+//                if (selectedDevice.address != null) {
+//                    ImmobilizerService.sendRequest(
+//                        USER_REQUEST.REGISTER_PHONE,
+//                        selectedDevice.address
+//                    )
+//                } else {
+//                    Toast.makeText(
+//                        this@RegisterActivity, "Null Address????",
+//                        Toast.LENGTH_LONG
+//                    ).show()
+//                }
+//                finish()
+//            }
         }
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
         registerReceiver(receiver, filter)
@@ -136,7 +150,9 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
             registeredAddresses = mutableSetOf()
             registeredImmobilizers = getImmobilizerList(this)
             registeredImmobilizers.forEach {
-                registeredAddresses.add(it.address)
+                // registeredAddresses.add(it.address)
+                if (!registeredAddresses.contains(it.address))
+                    registeredAddresses.add(it.address)
             }
 
             // do device discovery
@@ -178,13 +194,27 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
         // in the registered immobilizer list
         if (isImmobilizer && !registeredAddresses.contains(device.address)) {
             // add to adapter
-            btDevices.add(device)
-            listAdapter = ArrayAdapter(
-                this,
-                android.R.layout.simple_list_item_1,
-                btDevices
-            )
-            binding.unregisteredDeviceList.adapter = listAdapter
+            uImmobilizers.add(UnregisteredImmobilizer(device))
+//            val list: List<UnregisteredImmobilizer> = uImmobilizers.toList()
+            unregisteredAdapter = UnregisteredImmobilizerAdapter(this, uImmobilizers)
+            unregisteredAdapter.notifyDataSetChanged()
+            binding.unregisteredDeviceRList.adapter = unregisteredAdapter
+
+//            btDevices.add(device)
+//            listAdapter = ArrayAdapter(
+//                this,
+//                android.R.layout.simple_list_item_1,
+//                btDevices
+//            )
+//            binding.unregisteredDeviceList.adapter = listAdapter
         }
+    }
+
+    private fun registerImmobilizer(unregisteredImmobilizer: UnregisteredImmobilizer) {
+        ImmobilizerService.sendRequest(
+            USER_REQUEST.REGISTER_PHONE,
+            unregisteredImmobilizer.address
+        )
+        finish()
     }
 }

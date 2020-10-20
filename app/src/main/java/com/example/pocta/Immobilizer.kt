@@ -1,5 +1,6 @@
 package com.example.pocta
 
+import android.bluetooth.BluetoothDevice
 import android.os.Parcelable
 import kotlinx.android.parcel.Parcelize
 import org.jetbrains.anko.db.rowParser
@@ -44,6 +45,20 @@ data class Immobilizer(
     }
 }
 
-val immobilizerParser = rowParser{id: Long, address: String, name: String, key: ByteArray ->
-    Immobilizer(id, address, name, key)
+val immobilizerParser =
+    rowParser { id: Long, address: String, name: String, key: ByteArray ->
+        Immobilizer(id, address, name, key)
+    }
+
+data class UnregisteredImmobilizer(
+    val address: String,
+    val name: String
+) {
+    constructor(device: BluetoothDevice) : this(device.address, device.name)
+}
+
+class ImmobilizerUI(immobilizer: Immobilizer) {
+    var name = immobilizer.name
+    val address = immobilizer.address
+    var status = "Disconnected"
 }

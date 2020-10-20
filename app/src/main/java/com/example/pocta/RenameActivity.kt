@@ -23,7 +23,7 @@ class RenameActivity : AppCompatActivity() {
         binding.apply {
             renameScreenRenameButton.setOnClickListener { renameImmobilizer(immobilizerAddress) }
             renameScreenCancelButton.setOnClickListener { cancelPin() }
-            renameScreenRenameField.setOnEditorActionListener { _, actionId, event ->
+            renameScreenRenameField.setOnEditorActionListener { _, actionId, _ ->
                 return@setOnEditorActionListener when (actionId) {
                     EditorInfo.IME_ACTION_DONE -> {
                         renameImmobilizer(immobilizerAddress)
