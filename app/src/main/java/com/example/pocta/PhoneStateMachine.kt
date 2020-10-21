@@ -809,14 +809,15 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
+        sm.userRequest = USER_REQUEST.NOTHING
         if (incomingMessage == sm.ACK) {
             sm.updateLog("Akun berhasil dihapus!")
             sm.deleteAccount()
+            sm.sendData(sm.ACK.toByteArray())
         } else {
             sm.updateLog("Akun gagal dihapus!")
+            sm.changeState(RequestState(sm))
         }
-        sm.userRequest = USER_REQUEST.NOTHING
-        sm.changeState(RequestState(sm))
     }
 
     override fun onBTDisconnect() {
