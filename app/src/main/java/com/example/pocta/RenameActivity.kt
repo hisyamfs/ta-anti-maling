@@ -42,13 +42,13 @@ class RenameActivity : AppCompatActivity() {
         )
     }
 
-    override fun onDestroy() {
+    override fun onStop() {
         val inputMethodManager =
             getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         inputMethodManager.hideSoftInputFromWindow(
             binding.renameScreenRenameField.windowToken, 0
         )
-        super.onDestroy()
+        super.onStop()
     }
 
     private fun cancelPin() {

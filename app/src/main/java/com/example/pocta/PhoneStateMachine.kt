@@ -224,11 +224,11 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
 
     /**
      * Notify the activity/service to show PIN prompts to the user
-     * @param str Newest log update. Doesn't have any direct effect to the PIN prompt UI
+     * @param str Message to be shown on PIN prompt screen
      */
     fun promptUserPinInput(str: String) {
         updateLog(str)
-        extHandler.obtainMessage(MESSAGE_PROMPT_PIN).sendToTarget()
+        extHandler.obtainMessage(MESSAGE_PROMPT_PIN, str).sendToTarget()
     }
 
     /**
@@ -270,7 +270,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      * Disable bluetooth input decryption
      */
     fun disableDecryption() {
-        updateLog("Decryption On")
+        updateLog("Decryption Off")
         bt.useInputDecryption = false
     }
 
@@ -278,7 +278,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      * Enable bluetooth input decryption
      */
     fun enableDecryption() {
-        updateLog("Decryption Off")
+        updateLog("Decryption On")
         bt.useInputDecryption = true
     }
 
@@ -462,9 +462,11 @@ class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
         sm.updateLog("${sm.deviceName} : $incomingMessage")
         when (incomingMessage) {
             sm.ACK -> {
+                sm.updateLog("HP anda dikenal")
                 sm.changeState(RequestState(sm))
             }
             sm.ACK_UNL -> {
+                sm.updateLog("HP anda dikenal, immobilizer terbuka")
                 sm.changeState(UnlockState(sm))
             }
             else -> {
@@ -508,6 +510,7 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
                 sm.changeState(ChallengeState(sm))
             }
         } else {
+            sm.userRequest = USER_REQUEST.NOTHING
             sm.updateLog("Request tidak dikenal atau belum diimplementasi")
         }
     }
@@ -576,10 +579,11 @@ class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
-            sm.promptUserPinInput("Masukkan password anda!")
+            sm.promptUserPinInput("Masukkan PIN anda!")
 //            sm.updateUI("To pin state")
             sm.changeState(PinState(sm))
         } else {
+            sm.userRequest = USER_REQUEST.NOTHING
             sm.updateLog("HP anda tidak dikenal\nTo AlarmState")
             sm.changeState(AlarmState(sm))
         }
@@ -615,7 +619,7 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
                 }
                 USER_REQUEST.CHANGE_PIN -> {
                     sm.enableEncryption()
-                    sm.promptUserPinInput("Masukkan password baru anda!")
+                    sm.promptUserPinInput("Masukkan PIN baru anda!")
                     sm.changeState(NewPinState(sm))
                 }
                 USER_REQUEST.REMOVE_PHONE -> {
@@ -761,18 +765,22 @@ class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
         when (incomingMessage) {
             sm.ACK -> {
                 // Kunci berhasil didaftarkan, masukkan PIN baru
+                sm.updateLog("Pertukaran kunci berhasil!")
                 sm.enableEncryption()
-                sm.promptUserPinInput("Masukkan password baru anda!")
+                sm.promptUserPinInput("Masukkan PIN baru anda!")
 //                sm.updateUI("To NewPinState")
                 sm.changeState(NewPinState(sm))
             }
             sm.NACK -> {
                 // Pertukaran kunci gagal
+                sm.updateLog("Pertukaran kunci gagal!")
 //                sm.updateUI("To RequestState")
+                sm.userRequest = USER_REQUEST.NOTHING
                 sm.changeState(RequestState(sm))
             }
             else -> {
                 // Dekripsi kunci dari device dan load
+                sm.updateLog("Mendekripsi secret key")
                 val myKey: SecretKey = sm.decryptSecretKey(bytes)
                 sm.disableEncryption()
                 sm.disableDecryption()
@@ -825,6 +833,7 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
 class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
+        sm.userRequest = USER_REQUEST.NOTHING
         sm.updateStatus("ALARM ON!")
         sm.changeState(RequestState(sm))
     }

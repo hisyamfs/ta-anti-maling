@@ -14,6 +14,7 @@
             android:layout_gravity="center_horizontal"
             android:layout_margin="8dp"
             android:text="PIN :"
+            android:id="@+id/pin_screen_header"
             android:textSize="20sp" />
 
         <EditText

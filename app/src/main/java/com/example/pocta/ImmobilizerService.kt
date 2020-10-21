@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.*
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
@@ -21,6 +22,7 @@ const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.N
 const val IMMOBILIZER_SERVICE_LOG = "com.example.pocta.ImmobilizerService.LOG"
 const val IMMOBILIZER_SERVICE_STATUS = "com.example.pocta.ImmobilizerService.STATUS"
 const val IMMOBILIZER_SERVICE_ADDRESS = "com.example.pocta.ImmobilizerService.ADDRESS"
+const val IMMOBILIZER_SERVICE_PROMPT_MESSAGE = "com.example.pocta.ImmobilizerService.PIN_PROMPT_MESSAGE"
 
 class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
     private val hService = WeakReference<ImmobilizerService>(service)
@@ -39,7 +41,8 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
 //                    sendResult(IMMOBILIZER_SERVICE_STATUS, immobilizerStatus)
                 }
                 PhoneStateMachine.MESSAGE_PROMPT_PIN -> {
-                    activatePinScreen()
+                    val hint: String = msg.obj as String
+                    activatePinScreen(hint)
                 }
                 PhoneStateMachine.MESSAGE_PROMPT_RENAME -> {
                     val address: String = msg.obj as String
@@ -60,6 +63,7 @@ class ImmobilizerService : Service() {
 
     companion object {
         const val REQUEST_ENABLE_BT = 1
+        const val TAG = "ImmobilizerService"
         const val CHANNEL_ID = "ImmobilizerService"
         lateinit var btAdapter: BluetoothAdapter
         lateinit var btDevice: BluetoothDevice
@@ -144,9 +148,12 @@ class ImmobilizerService : Service() {
          * the immobilizer with the specified address
          */
         fun sendRequest(request: USER_REQUEST, address: String, name: String? = null) {
+//            Log.i(TAG, "sendRequest() called")
             if (immobilizerController.isConnected && address == immobilizerController.deviceAddress) {
+                Log.i(TAG, "sendRequest() called on a connected device")
                 immobilizerController.onUserRequest(request)
             } else if (btAdapter.isEnabled) {
+                Log.i(TAG, "sendRequest() called on a disconnected device")
                 btDevice = btAdapter.getRemoteDevice(address)
                 immobilizerController.initConnection(btDevice, request, name)
             }
@@ -236,11 +243,13 @@ class ImmobilizerService : Service() {
 
     /**
      * Show the PIN prompt
+     * @param msg Message to be shown on the PIN prompt screen
      */
-    fun activatePinScreen() {
+    fun activatePinScreen(msg: String) {
         val flags = Intent.FLAG_ACTIVITY_NEW_TASK
         val intent = Intent(this, PinActivity::class.java)
             .addFlags(flags)
+            .putExtra(IMMOBILIZER_SERVICE_PROMPT_MESSAGE, msg)
         startActivity(intent)
     }
 }
