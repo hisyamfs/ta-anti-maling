@@ -47,6 +47,7 @@ class BluetoothHandler(sm: PhoneStateMachine) : Handler() {
                 }
                 MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
                 MyBluetoothService.CONNECTION_START -> onBTConnection()
+                MyCredentialManager.DB_UPDATE -> notifyDBUpdate()
             }
         }
     }
@@ -72,7 +73,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
     var isConnected: Boolean = false
     private val btHandler = BluetoothHandler(this)
     private val bt: MyBluetoothService = MyBluetoothService(context, btHandler)
-    private val cm: MyCredentialManager = MyCredentialManager(context)
+    private val cm: MyCredentialManager = MyCredentialManager(context, btHandler)
     private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair() ?: cm.getDefaultRSAKeyPair()
     private var myKey: SecretKey = cm.getDefaultSymmetricKey()
     private var appState: PhoneState = DisconnectState(this)
@@ -83,6 +84,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
         const val MESSAGE_STATUS: Int = 1
         const val MESSAGE_PROMPT_PIN: Int = 2
         const val MESSAGE_PROMPT_RENAME: Int = 3
+        const val MESSAGE_DB_UPDATE: Int = 4
     }
 
     /**
@@ -242,6 +244,10 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
         extHandler.obtainMessage(MESSAGE_PROMPT_RENAME, myAddress).sendToTarget()
     }
 
+    fun notifyDBUpdate() {
+        extHandler.obtainMessage(MESSAGE_DB_UPDATE).sendToTarget()
+    }
+
     /**
      * Disable bluetooth output encryption
      */
@@ -324,6 +330,15 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
     fun updateDatabase(name: String) {
         if (btDevice != null)
             cm.setStoredKey(btDevice!!.address, name, myKey)
+    }
+
+    /**
+     * Rename an immobilizer
+     * @param address Address of the immobilizer
+     * @param name The desired user-facing name of the immobilizer
+     */
+    fun renameImmobilizer(address: String, name: String) {
+        cm.renameImmobilizer(address, name)
     }
 
     /**

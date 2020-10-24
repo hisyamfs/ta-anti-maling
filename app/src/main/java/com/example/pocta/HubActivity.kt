@@ -18,7 +18,6 @@ import com.example.pocta.databinding.ActivityHubBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 class HubActivity : AppCompatActivity(), CoroutineScope {
@@ -62,6 +61,13 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
                 binding.hubActivityStatusView.text = it
             }
         )
+        imsInstance.immobilizerListLD.observe(
+            this,
+            Observer {
+                list = it
+                updateImmobilizerCards()
+            }
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +80,7 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             LinearLayoutManager.VERTICAL, false
         )
         immobilizerAdapter = ImmobilizerAdapter(this, list)
+        ImmobilizerService.bindService(this, imsConnection)
 
         binding.apply {
             pairedDevicesList.apply {
@@ -82,43 +89,31 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             }
             enableBtButton.setOnClickListener { enableBluetooth() }
             refreshListButton.setOnClickListener {
-                launch {
-                    listPairedDevices()
-                }
+                imsInstance.getRegisteredImmobilizers()
             }
             addImmobilizerButton.setOnClickListener { startRegisterActivity() }
             hubActivityViewLogButton.setOnClickListener { startLogActivity() }
             hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
         }
-
-        ImmobilizerService.bindService(this, imsConnection)
-
-//        receiver = object : BroadcastReceiver() {
-//            override fun onReceive(context: Context?, intent: Intent?) {
-//                binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
-//            }
-//        }
     }
 
     override fun onStart() {
         super.onStart()
-//        LocalBroadcastManager.getInstance(this)
-//            .registerReceiver(
-//                receiver,
-//                IntentFilter(IMMOBILIZER_SERVICE_STATUS)
-//            )
+        Log.i(TAG, "onStart called")
         binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
-        launch {
-            listPairedDevices()
-        }
+//        imsInstance.getRegisteredImmobilizers()
+//        launch {
+//            listPairedDevices()
+//        }
     }
 
     override fun onResume() {
         super.onResume()
+        Log.i(TAG, "onResume called")
 //        binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
-        launch {
-            listPairedDevices()
-        }
+//        launch {
+//            listPairedDevices()
+//        }
     }
 
 //    override fun onStop() {
@@ -128,6 +123,7 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
 //    }
 
     override fun onDestroy() {
+        Log.i(TAG, "onDestroy called")
         job.cancel()
         unbindService(imsConnection)
         ImmobilizerService.stopService(this)
@@ -172,8 +168,22 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
         }
     }
 
-    private suspend fun listPairedDevices() {
-        list = getImmobilizerList(this)
+    private fun listPairedDevices() {
+//        list = getImmobilizerList(this)
+//        immobilizerAdapter = ImmobilizerAdapter(this, list)
+//        immobilizerAdapter?.notifyDataSetChanged()
+//        binding.pairedDevicesList.adapter = immobilizerAdapter
+//        if (list.isEmpty()) {
+//            Toast.makeText(
+//                this,
+//                "Tidak ada device immobilizer yang terdaftar!",
+//                Toast.LENGTH_SHORT
+//            ).show()
+//        }
+        imsInstance.getRegisteredImmobilizers()
+    }
+
+    private fun updateImmobilizerCards() {
         immobilizerAdapter = ImmobilizerAdapter(this, list)
         immobilizerAdapter?.notifyDataSetChanged()
         binding.pairedDevicesList.adapter = immobilizerAdapter
@@ -185,5 +195,4 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             ).show()
         }
     }
-
 }

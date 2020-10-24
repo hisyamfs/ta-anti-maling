@@ -16,13 +16,19 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
 import com.example.pocta.ImmobilizerService.Companion.immobilizerData
 import com.example.pocta.ImmobilizerService.Companion.immobilizerStatus
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
+import kotlin.coroutines.CoroutineContext
 
 const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.NEW_DATA"
 const val IMMOBILIZER_SERVICE_LOG = "com.example.pocta.ImmobilizerService.LOG"
 const val IMMOBILIZER_SERVICE_STATUS = "com.example.pocta.ImmobilizerService.STATUS"
 const val IMMOBILIZER_SERVICE_ADDRESS = "com.example.pocta.ImmobilizerService.ADDRESS"
-const val IMMOBILIZER_SERVICE_PROMPT_MESSAGE = "com.example.pocta.ImmobilizerService.PIN_PROMPT_MESSAGE"
+const val IMMOBILIZER_SERVICE_PROMPT_MESSAGE =
+    "com.example.pocta.ImmobilizerService.PIN_PROMPT_MESSAGE"
 
 class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
     private val hService = WeakReference<ImmobilizerService>(service)
@@ -48,18 +54,26 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
                     val address: String = msg.obj as String
                     activateRenameScreen(address)
                 }
+                PhoneStateMachine.MESSAGE_DB_UPDATE ->
+                    getRegisteredImmobilizers()
             }
         }
     }
+
 }
 
-class ImmobilizerService : Service() {
+class ImmobilizerService : Service(), CoroutineScope {
     private var isStarted = false
     private lateinit var smHandler: Handler
-//    private lateinit var broadcastManager: LocalBroadcastManager
+    //    private lateinit var broadcastManager: LocalBroadcastManager
     private val imBinder: IBinder = ImmobilizerBinder()
     val immobilizerStatusLD: MutableLiveData<String> = MutableLiveData()
     val immobilizerDataLD: MutableLiveData<String> = MutableLiveData()
+    val immobilizerListLD: MutableLiveData<List<Immobilizer>> = MutableLiveData()
+
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Main + job
+    private lateinit var job: Job
 
     companion object {
         const val REQUEST_ENABLE_BT = 1
@@ -158,6 +172,15 @@ class ImmobilizerService : Service() {
                 immobilizerController.initConnection(btDevice, request, name)
             }
         }
+
+        /**
+         * Rename an immobilizer
+         * @param address Address of the immobilizer
+         * @param name The desired user-facing name of the immobilizer
+         */
+        fun renameImmobilizer(address: String, name: String) {
+            immobilizerController.renameImmobilizer(address, name)
+        }
     }
 
     override fun onCreate() {
@@ -165,6 +188,7 @@ class ImmobilizerService : Service() {
         // TODO("Refactor PhoneStateMachine agar tidak ter-couple ke TextView langsung")
 //        broadcastManager = LocalBroadcastManager.getInstance(this)
         smHandler = ImmobilizerHandler(this)
+        job = Job()
         immobilizerController = PhoneStateMachine(this, smHandler)
         btAdapter = BluetoothAdapter.getDefaultAdapter().apply { enable() }
     }
@@ -172,12 +196,13 @@ class ImmobilizerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!isStarted) {
             startNotification()
+            getRegisteredImmobilizers()
             isStarted = true
         }
         return START_NOT_STICKY
     }
 
-    inner class ImmobilizerBinder: Binder() {
+    inner class ImmobilizerBinder : Binder() {
         fun getService(): ImmobilizerService = this@ImmobilizerService
     }
 
@@ -190,6 +215,7 @@ class ImmobilizerService : Service() {
     }
 
     override fun onDestroy() {
+        job.cancel()
         immobilizerController.disconnect()
         super.onDestroy()
     }
@@ -228,6 +254,22 @@ class ImmobilizerService : Service() {
 //            .putExtra(type, message)
 //        broadcastManager.sendBroadcast(intent)
 //    }
+
+    /**
+     * Refresh the LiveData of list of registered immobilizers
+     */
+    fun getRegisteredImmobilizers() {
+        launch { refreshImmobilizerList() }
+    }
+
+    /**
+     * Refresh the list of registered immobilizers
+     */
+    private suspend fun refreshImmobilizerList() {
+        val list = getImmobilizerList(this)
+        immobilizerListLD.postValue(list)
+    }
+
 
     /**
      * Show the device naming promp

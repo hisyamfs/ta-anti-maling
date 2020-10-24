@@ -2,6 +2,7 @@ package com.example.pocta
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
 import android.security.KeyPairGeneratorSpec
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -15,6 +16,7 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.anko.db.delete
 import org.jetbrains.anko.db.replace
 import org.jetbrains.anko.db.select
+import org.jetbrains.anko.db.update
 import java.math.BigInteger
 import java.security.*
 import java.security.spec.PKCS8EncodedKeySpec
@@ -30,7 +32,7 @@ import kotlin.math.abs
  * Database and encryption key management class
  * @param context Context of the caller
  */
-class MyCredentialManager(private val context: Context) {
+class MyCredentialManager(private val context: Context, private val handler: Handler) {
     private val defPubKeyString = """
     -----BEGIN PUBLIC KEY-----
     MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6yN4qhtwMG0/O3yqULK
@@ -84,6 +86,7 @@ class MyCredentialManager(private val context: Context) {
     companion object {
         const val KEY_ALIAS = "ImmobilizerAESKey"
         const val TAG = "MyCredentialManager"
+        const val DB_UPDATE: Int = 6
     }
 
     private fun createKeyStore(): KeyStore {
@@ -267,6 +270,7 @@ class MyCredentialManager(private val context: Context) {
                         Immobilizer.KEY to encryptedKey
                     )
                 }
+                handler.obtainMessage(DB_UPDATE).sendToTarget()
             } catch (e: Exception) {
                 Log.e(TAG, "setStoredKey ERROR:", e)
             }
@@ -286,7 +290,30 @@ class MyCredentialManager(private val context: Context) {
                 "qAddress" to immobilizerAddress
             )
         }
+        handler.obtainMessage(DB_UPDATE).sendToTarget()
         return numDeleted
+    }
+
+    /**
+     * Rename an immobilizer device
+     * @param immobilizerAddress Bluetooth address of the Immobilizer
+     * @param immobilizerName The desired User-facing name of the Immobilizer
+     */
+    fun renameImmobilizer(immobilizerAddress: String, immobilizerName: String) {
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                context.database.use {
+                    update(
+                        Immobilizer.TABLE_IMMOBILIZER, Immobilizer.NAME to immobilizerName
+                    )
+                        .whereSimple("${Immobilizer.ADDRESS} = ?", immobilizerAddress)
+                        .exec()
+                }
+                handler.obtainMessage(DB_UPDATE).sendToTarget()
+            } catch (e: Exception) {
+                Log.e(TAG, "renameImmobilizer() ERROR:", e)
+            }
+        }
     }
 }
 
