@@ -69,6 +69,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
     val NACK = "0"
     var deviceName = btDevice?.name ?: "Device_PH"
     var deviceAddress = btDevice?.address
+    var deviceStatus: String = "Disconnected"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
     var isConnected: Boolean = false
     private val btHandler = BluetoothHandler(this)
@@ -220,7 +221,8 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      * @param status Newest state machine status
      */
     fun updateStatus(status: String) {
-        val statusStr = "$deviceName:\n$status"
+        deviceStatus = status
+        val statusStr = "$deviceName:\n$deviceStatus"
         extHandler.obtainMessage(MESSAGE_STATUS, statusStr).sendToTarget()
     }
 
@@ -339,6 +341,11 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      */
     fun renameImmobilizer(address: String, name: String) {
         cm.renameImmobilizer(address, name)
+        val currentAddress = btDevice?.address ?: "0"
+        if (address == currentAddress) {
+            deviceName = name
+            updateStatus(deviceStatus)
+        }
     }
 
     /**
