@@ -148,7 +148,7 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
             // store the addresses into a set
             Log.i("RegisterActivity", "Syncing to database")
             registeredAddresses = mutableSetOf()
-            registeredImmobilizers = getImmobilizerList(this)
+            registeredImmobilizers = ImmobilizerRepository.getImmobilizerList(this)
             registeredImmobilizers.forEach {
                 // registeredAddresses.add(it.address)
                 if (!registeredAddresses.contains(it.address))

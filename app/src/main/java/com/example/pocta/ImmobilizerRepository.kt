@@ -8,7 +8,6 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
-import com.example.pocta.MyCredentialManager.Companion.TAG
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -29,10 +28,9 @@ import javax.security.auth.x500.X500Principal
 import kotlin.math.abs
 
 /**
- * Database and encryption key management class
- * @param context Context of the caller
+ * Database and encryption key management singleton object
  */
-class MyCredentialManager(private val context: Context, private val handler: Handler) {
+object ImmobilizerRepository {
     private val defPubKeyString = """
     -----BEGIN PUBLIC KEY-----
     MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6yN4qhtwMG0/O3yqULK
@@ -82,12 +80,12 @@ class MyCredentialManager(private val context: Context, private val handler: Han
         .replace("-----BEGIN PRIVATE KEY-----", "")
         .replace("-----END PRIVATE KEY-----", "")
 
-    private var keyPair = getStoredRSAKeyPair() ?: getDefaultRSAKeyPair()
-    companion object {
-        const val KEY_ALIAS = "ImmobilizerAESKey"
-        const val TAG = "MyCredentialManager"
-        const val DB_UPDATE: Int = 6
-    }
+    private var keyPair = getDefaultRSAKeyPair()
+    const val KEY_ALIAS = "ImmobilizerAESKey"
+    const val TAG = "MyCredentialManager"
+    const val DB_UPDATE: Int = 6
+
+    var handler: Handler? = null
 
     private fun createKeyStore(): KeyStore {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
@@ -100,7 +98,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @return RSA keypair, hard-coded
      * @note Use at your own risk
      */
-    fun getDefaultRSAKeyPair() : KeyPair {
+    fun getDefaultRSAKeyPair(): KeyPair {
         Log.i(TAG, "Getting default RSA keypair")
         val keyFactory = KeyFactory.getInstance("RSA")
         val privKeySpec = PKCS8EncodedKeySpec(Base64.decode(defPrivKeyString, Base64.DEFAULT))
@@ -118,7 +116,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @note Use at your own risk
      */
     fun getDefaultSymmetricKey(): SecretKey {
-        val secretKeyByteArray = ByteArray(16) { _ -> 0} // 16-byte array of zeroes
+        val secretKeyByteArray = ByteArray(16) { _ -> 0 } // 16-byte array of zeroes
         return SecretKeySpec(secretKeyByteArray, "AES")
     }
 
@@ -128,7 +126,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @note Will create a new RSA keypair if it didn't exist, and store it in Android KeyStore
      * @note duh.
      */
-    fun getStoredRSAKeyPair() : KeyPair? {
+    fun getStoredRSAKeyPair(context: Context): KeyPair? {
         val keyStore = createKeyStore()
         val privateKey = keyStore.getKey(KEY_ALIAS, null) as PrivateKey?
         val publicKey = keyStore.getCertificate(KEY_ALIAS)?.publicKey
@@ -137,11 +135,11 @@ class MyCredentialManager(private val context: Context, private val handler: Han
             Log.i(TAG, "Loading stored keypair")
             KeyPair(publicKey, privateKey)
         } else {
-            createStoredRSAKeyPair()
+            createStoredRSAKeyPair(context)
         }
     }
 
-    private fun createStoredRSAKeyPair(): KeyPair? {
+    private fun createStoredRSAKeyPair(context: Context): KeyPair? {
         val generator: KeyPairGenerator
         when {
             hasMarshmallow() -> {
@@ -202,12 +200,12 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @note Will call {@link #getStoredRSAKeyPair} at the end of the function call, and
      * store the result in a private variable
      */
-    fun resetStoredRSAKeyPair() {
+    fun resetStoredRSAKeyPair(context: Context) {
         removeStoredRSAKeyPair()
-        keyPair = getStoredRSAKeyPair() ?: return
+        keyPair = getStoredRSAKeyPair(context) ?: return
     }
 
-    private suspend fun getImmobilizer(immobilizerAddress: String): Immobilizer? {
+    suspend fun getImmobilizer(context: Context, immobilizerAddress: String): Immobilizer? {
         return withContext(Dispatchers.IO) {
             var immobilizer: Immobilizer? = null
             context.database.use {
@@ -225,7 +223,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @return AES key of the device
      * @note If somehow there's an error, will return default key
      */
-    fun getStoredKey(immobilizerAddress: String): SecretKey {
+    fun getStoredKey(context: Context, immobilizerAddress: String): SecretKey {
         var immobilizer: Immobilizer? = null
         context.database.use {
             val result = select(Immobilizer.TABLE_IMMOBILIZER)
@@ -235,6 +233,9 @@ class MyCredentialManager(private val context: Context, private val handler: Han
         val encryptedKey = immobilizer?.key
         return if (encryptedKey != null) {
             try {
+                getStoredRSAKeyPair(context)?.let {
+                    keyPair = it
+                }
                 val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
                 cipher.init(Cipher.DECRYPT_MODE, keyPair.private)
                 val encodedKey = cipher.doFinal(encryptedKey)
@@ -256,9 +257,12 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @param newKey AES key of the device
      * @note If somehow there's an error, will return default key. Stealth error danger.
      */
-    fun setStoredKey(immobilizerAddress: String, immobilizerName: String, newKey: SecretKey) {
+    fun setStoredKey(context: Context, immobilizerAddress: String, immobilizerName: String, newKey: SecretKey) {
         GlobalScope.launch(Dispatchers.IO) {
             try {
+                getStoredRSAKeyPair(context)?.let {
+                    keyPair = it
+                }
                 val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
                 cipher.init(Cipher.ENCRYPT_MODE, keyPair.public)
                 val encryptedKey = cipher.doFinal(newKey.encoded)
@@ -270,7 +274,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
                         Immobilizer.KEY to encryptedKey
                     )
                 }
-                handler.obtainMessage(DB_UPDATE).sendToTarget()
+                handler?.obtainMessage(DB_UPDATE)?.sendToTarget()
             } catch (e: Exception) {
                 Log.e(TAG, "setStoredKey ERROR:", e)
             }
@@ -281,7 +285,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * Delete an immobilizer from immobilizer device database
      * @param immobilizerAddress address of the device to be deleted
      */
-    fun deleteAccount(immobilizerAddress: String): Int {
+    fun deleteAccount(context: Context, immobilizerAddress: String): Int {
         var numDeleted: Int = 0
         context.database.use {
             numDeleted = delete(
@@ -290,7 +294,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
                 "qAddress" to immobilizerAddress
             )
         }
-        handler.obtainMessage(DB_UPDATE).sendToTarget()
+        handler?.obtainMessage(DB_UPDATE)?.sendToTarget()
         return numDeleted
     }
 
@@ -299,7 +303,7 @@ class MyCredentialManager(private val context: Context, private val handler: Han
      * @param immobilizerAddress Bluetooth address of the Immobilizer
      * @param immobilizerName The desired User-facing name of the Immobilizer
      */
-    fun renameImmobilizer(immobilizerAddress: String, immobilizerName: String) {
+    fun renameImmobilizer(context: Context, immobilizerAddress: String, immobilizerName: String) {
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 context.database.use {
@@ -309,10 +313,30 @@ class MyCredentialManager(private val context: Context, private val handler: Han
                         .whereSimple("${Immobilizer.ADDRESS} = ?", immobilizerAddress)
                         .exec()
                 }
-                handler.obtainMessage(DB_UPDATE).sendToTarget()
+                handler?.obtainMessage(DB_UPDATE)?.sendToTarget()
             } catch (e: Exception) {
                 Log.e(TAG, "renameImmobilizer() ERROR:", e)
             }
+        }
+    }
+
+    /**
+     * Get a list of all immobilizers in the database
+     * @param context Context of the caller
+     * @return List of the immobilizers in the database, returns empty list if it didn't exist.
+     */
+    suspend fun getImmobilizerList(context: Context): List<Immobilizer> {
+        return withContext(Dispatchers.IO) {
+            var rList: List<Immobilizer> = emptyList()
+            try {
+                context.database.use {
+                    val result = select(Immobilizer.TABLE_IMMOBILIZER)
+                    rList = result.parseList(immobilizerParser)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "getImmobilizerList ERROR:", e)
+            }
+            rList
         }
     }
 }
@@ -323,24 +347,4 @@ fun hasMarshmallow(): Boolean {
 
 fun hasKitkat(): Boolean {
     return Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT
-}
-
-/**
- * Get a list of all immobilizers in the database
- * @param context Context of the caller
- * @return List of the immobilizers in the database, returns empty list if it didn't exist.
- */
-suspend fun getImmobilizerList(context: Context): List<Immobilizer> {
-    return withContext(Dispatchers.IO) {
-        var rList: List<Immobilizer> = emptyList()
-        try {
-            context.database.use {
-                val result = select(Immobilizer.TABLE_IMMOBILIZER)
-                rList = result.parseList(immobilizerParser)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "getImmobilizerList ERROR:", e)
-        }
-        rList
-    }
 }

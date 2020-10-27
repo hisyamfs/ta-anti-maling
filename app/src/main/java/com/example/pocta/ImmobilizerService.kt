@@ -54,8 +54,9 @@ class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
                     val address: String = msg.obj as String
                     activateRenameScreen(address)
                 }
-                PhoneStateMachine.MESSAGE_DB_UPDATE ->
+                ImmobilizerRepository.DB_UPDATE -> {
                     getRegisteredImmobilizers()
+                }
             }
         }
     }
@@ -189,6 +190,7 @@ class ImmobilizerService : Service(), CoroutineScope {
 //        broadcastManager = LocalBroadcastManager.getInstance(this)
         smHandler = ImmobilizerHandler(this)
         job = Job()
+        ImmobilizerRepository.handler = smHandler
         immobilizerController = PhoneStateMachine(this, smHandler)
         btAdapter = BluetoothAdapter.getDefaultAdapter().apply { enable() }
     }
@@ -259,17 +261,12 @@ class ImmobilizerService : Service(), CoroutineScope {
      * Refresh the LiveData of list of registered immobilizers
      */
     fun getRegisteredImmobilizers() {
-        launch { refreshImmobilizerList() }
+        launch {
+            val list =
+                ImmobilizerRepository.getImmobilizerList(this@ImmobilizerService)
+            immobilizerListLD.postValue(list)
+        }
     }
-
-    /**
-     * Refresh the list of registered immobilizers
-     */
-    private suspend fun refreshImmobilizerList() {
-        val list = getImmobilizerList(this)
-        immobilizerListLD.postValue(list)
-    }
-
 
     /**
      * Show the device naming promp

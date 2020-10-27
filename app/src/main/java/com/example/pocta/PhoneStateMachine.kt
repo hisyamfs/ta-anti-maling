@@ -47,7 +47,6 @@ class BluetoothHandler(sm: PhoneStateMachine) : Handler() {
                 }
                 MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
                 MyBluetoothService.CONNECTION_START -> onBTConnection()
-                MyCredentialManager.DB_UPDATE -> notifyDBUpdate()
             }
         }
     }
@@ -61,8 +60,15 @@ class BluetoothHandler(sm: PhoneStateMachine) : Handler() {
  * @param extHandler Handler in the activity/service that calls the state machine, to notify
  * data update in the state machine to the callee
  */
-class PhoneStateMachine(context: Context, private val extHandler: Handler) {
+class PhoneStateMachine(private val context: Context, private val extHandler: Handler) {
     private var btDevice: BluetoothDevice? = null
+    private val btHandler = BluetoothHandler(this)
+    private val bt: MyBluetoothService = MyBluetoothService(context, btHandler)
+    private val cm: ImmobilizerRepository = ImmobilizerRepository
+    private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair(context) ?: cm.getDefaultRSAKeyPair()
+    private var myKey: SecretKey = cm.getDefaultSymmetricKey()
+    private var appState: PhoneState = DisconnectState(this)
+
     val ACK_UNL = "3"
     val ERR = "2"
     val ACK = "1"
@@ -72,12 +78,6 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
     var deviceStatus: String = "Disconnected"
     var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
     var isConnected: Boolean = false
-    private val btHandler = BluetoothHandler(this)
-    private val bt: MyBluetoothService = MyBluetoothService(context, btHandler)
-    private val cm: MyCredentialManager = MyCredentialManager(context, btHandler)
-    private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair() ?: cm.getDefaultRSAKeyPair()
-    private var myKey: SecretKey = cm.getDefaultSymmetricKey()
-    private var appState: PhoneState = DisconnectState(this)
 
     companion object {
         const val TAG = "PhoneStateMachine"
@@ -160,7 +160,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
         deviceName = custom_name ?: device.name
         deviceAddress = device.address
         userRequest = req
-        myKey = cm.getStoredKey(btDevice!!.address)
+        myKey = cm.getStoredKey(context, btDevice!!.address)
         bt.apply {
             setAESKey(myKey)
             useOutputEncryption = false
@@ -322,7 +322,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      */
     fun updateDatabase() {
         if (btDevice != null)
-            cm.setStoredKey(btDevice!!.address, btDevice!!.name, myKey)
+            cm.setStoredKey(context, btDevice!!.address, btDevice!!.name, myKey)
     }
 
     /**
@@ -331,7 +331,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      */
     fun updateDatabase(name: String) {
         if (btDevice != null)
-            cm.setStoredKey(btDevice!!.address, name, myKey)
+            cm.setStoredKey(context, btDevice!!.address, name, myKey)
     }
 
     /**
@@ -340,7 +340,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      * @param name The desired user-facing name of the immobilizer
      */
     fun renameImmobilizer(address: String, name: String) {
-        cm.renameImmobilizer(address, name)
+        cm.renameImmobilizer(context, address, name)
         val currentAddress = btDevice?.address ?: "0"
         if (address == currentAddress) {
             deviceName = name
@@ -353,7 +353,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      */
     fun deleteAccount() {
         if (btDevice != null)
-            cm.deleteAccount(btDevice!!.address)
+            cm.deleteAccount(context, btDevice!!.address)
     }
 
     /**
@@ -373,7 +373,7 @@ class PhoneStateMachine(context: Context, private val extHandler: Handler) {
      * Reset the RSA keypair stored in database/keystore
      */
     fun resetKeyPair() {
-        cm.resetStoredRSAKeyPair()
+        cm.resetStoredRSAKeyPair(context)
     }
 
     /**
