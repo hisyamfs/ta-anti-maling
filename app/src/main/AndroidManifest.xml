@@ -15,7 +15,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <service android:name=".ImmobilizerService" />
-        <service android:name=".MyBluetoothService" />
+        <service android:name=".ImmobilizerBluetoothService" />
 
         <activity android:name=".RenameActivity" />
         <activity android:name=".PinActivity" />

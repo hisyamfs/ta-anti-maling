@@ -37,32 +37,23 @@ class RenameActivity : AppCompatActivity() {
         )
     }
 
-    override fun onStop() {
+    private fun finishPrompt() {
         val inputMethodManager =
             getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         inputMethodManager.hideSoftInputFromWindow(
             binding.renameScreenRenameField.windowToken, 0
         )
-        super.onStop()
+        ImmobilizerService.immobilizerController.clearPrompt()
+        finish()
     }
 
     private fun cancelPin() {
-        val inputMethodManager =
-            getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        inputMethodManager.hideSoftInputFromWindow(
-            binding.renameScreenRenameField.windowToken, 0
-        )
-        finish()
+        finishPrompt()
     }
 
     private fun renameImmobilizer(immobilizerAddress: String) {
         val userInput = binding.renameScreenRenameField.text.toString()
-        ImmobilizerService.renameImmobilizer(immobilizerAddress, userInput)
-        val inputMethodManager =
-            getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        inputMethodManager.hideSoftInputFromWindow(
-            binding.renameScreenRenameField.windowToken, 0
-        )
-        finish()
+        ImmobilizerService.immobilizerController.renameImmobilizer(immobilizerAddress, userInput)
+        finishPrompt()
     }
 }

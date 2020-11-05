@@ -57,5 +57,19 @@
             android:layout_margin="8dp"
             android:text="Lihat Log"
             android:id="@+id/hub_activity_view_log_button" />
+
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:text="Backup"
+            android:id="@+id/hub_activity_backup_button"/>
+
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:text="Hapus semua akun"
+            android:id="@+id/hub_activity_delete_all_button" />
     </LinearLayout>
 </layout>

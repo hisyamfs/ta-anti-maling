@@ -40,10 +40,10 @@ class UnregisteredImmobilizerAdapter(
                 itemUnregisteredImmoName.text = unregisteredImmobilizer.name
                 itemUnregisteredImmoAddress.text = unregisteredImmobilizer.address
                 itemRegisterDeviceButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(
-                        USER_REQUEST.REGISTER_PHONE,
+                    ImmobilizerService.immobilizerController.setActiveConnection(
                         unregisteredImmobilizer.address,
-                        unregisteredImmobilizer.name
+                        unregisteredImmobilizer.name,
+                        ImmobilizerUserRequest.REGISTER_PHONE
                     )
                     mActivity.finish()
                 }

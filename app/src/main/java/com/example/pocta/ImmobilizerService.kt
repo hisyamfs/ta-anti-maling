@@ -3,25 +3,17 @@ package com.example.pocta
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.os.*
-import android.util.Log
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.MutableLiveData
-import com.example.pocta.ImmobilizerService.Companion.immobilizerData
-import com.example.pocta.ImmobilizerService.Companion.immobilizerStatus
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import java.lang.ref.WeakReference
-import kotlin.coroutines.CoroutineContext
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.Observer
+
 
 const val IMMOBILIZER_SERVICE_NEW_DATA = "com.example.pocta.ImmobilizerService.NEW_DATA"
 const val IMMOBILIZER_SERVICE_LOG = "com.example.pocta.ImmobilizerService.LOG"
@@ -30,61 +22,15 @@ const val IMMOBILIZER_SERVICE_ADDRESS = "com.example.pocta.ImmobilizerService.AD
 const val IMMOBILIZER_SERVICE_PROMPT_MESSAGE =
     "com.example.pocta.ImmobilizerService.PIN_PROMPT_MESSAGE"
 
-class ImmobilizerHandler(service: ImmobilizerService) : Handler() {
-    private val hService = WeakReference<ImmobilizerService>(service)
-    override fun handleMessage(msg: Message) {
-        hService.get()?.apply {
-            when (msg.what) {
-                PhoneStateMachine.MESSAGE_LOG -> {
-                    val newLog = msg.obj as String
-                    immobilizerData = "$immobilizerData\n$newLog"
-                    immobilizerDataLD.postValue(immobilizerData)
-//                    sendResult(IMMOBILIZER_SERVICE_LOG, immobilizerData)
-                }
-                PhoneStateMachine.MESSAGE_STATUS -> {
-                    immobilizerStatus = msg.obj as String
-                    immobilizerStatusLD.postValue(immobilizerStatus)
-//                    sendResult(IMMOBILIZER_SERVICE_STATUS, immobilizerStatus)
-                }
-                PhoneStateMachine.MESSAGE_PROMPT_PIN -> {
-                    val hint: String = msg.obj as String
-                    activatePinScreen(hint)
-                }
-                PhoneStateMachine.MESSAGE_PROMPT_RENAME -> {
-                    val address: String = msg.obj as String
-                    activateRenameScreen(address)
-                }
-                ImmobilizerRepository.DB_UPDATE -> {
-                    getRegisteredImmobilizers()
-                }
-            }
-        }
-    }
-
-}
-
-class ImmobilizerService : Service(), CoroutineScope {
+class ImmobilizerService : LifecycleService() {
     private var isStarted = false
-    private lateinit var smHandler: Handler
-    //    private lateinit var broadcastManager: LocalBroadcastManager
     private val imBinder: IBinder = ImmobilizerBinder()
-    val immobilizerStatusLD: MutableLiveData<String> = MutableLiveData()
-    val immobilizerDataLD: MutableLiveData<String> = MutableLiveData()
-    val immobilizerListLD: MutableLiveData<List<Immobilizer>> = MutableLiveData()
-
-    override val coroutineContext: CoroutineContext
-        get() = Dispatchers.Main + job
-    private lateinit var job: Job
 
     companion object {
         const val REQUEST_ENABLE_BT = 1
         const val TAG = "ImmobilizerService"
         const val CHANNEL_ID = "ImmobilizerService"
-        lateinit var btAdapter: BluetoothAdapter
-        lateinit var btDevice: BluetoothDevice
-        lateinit var immobilizerController: PhoneStateMachine
-        var immobilizerStatus: String = "Uhuy!"
-        var immobilizerData: String = ""
+        lateinit var immobilizerController: ImmobilizerController
 
         /**
          * Start the service
@@ -113,92 +59,20 @@ class ImmobilizerService : Service(), CoroutineScope {
             val stopIntent = Intent(context, ImmobilizerService::class.java)
             context.stopService(stopIntent)
         }
-
-        /**
-         * Initialize a connection to an immobilizer device
-         * @param address Address of the immobilizer
-         * @param initRequest Initial request to be made after the connection is established
-         * @param name User-facing name of the immobilizer
-         */
-        private fun initConnection(
-            address: String,
-            initRequest: USER_REQUEST = USER_REQUEST.NOTHING,
-            name: String? = null
-        ) {
-            if (btAdapter.isEnabled) {
-                btDevice = btAdapter.getRemoteDevice(address)
-                immobilizerController.initConnection(btDevice, initRequest)
-            }
-        }
-
-        /**
-         * Toggle a connection to an immobilizer device
-         * @param address Address of the immobilizer
-         * @param name User-facing name of the immobilizer
-         * @param alwaysDisconnect If true, will allways terminate the connection to the immobilizer
-         */
-        fun toggleConnection(
-            address: String,
-            name: String? = null,
-            alwaysDisconnect: Boolean = false
-        ) {
-            if (alwaysDisconnect || immobilizerController.isConnected)
-                immobilizerController.disconnect()
-            else
-                initConnection(address, USER_REQUEST.NOTHING, name)
-        }
-
-        /**
-         * Send data to an immobilizer device
-         * @param bytes The data to be sent
-         */
-        fun sendData(bytes: ByteArray) = immobilizerController.onUserInput(bytes)
-
-        /**
-         * Send a request to an immobilizer device
-         * @param request Request to be sent
-         * @param address Address of the immobilizer device
-         * @param name User-facing name of the immobilizer
-         * @note Will initialize a connection if user's phone isn't connected yet to
-         * the immobilizer with the specified address
-         */
-        fun sendRequest(request: USER_REQUEST, address: String, name: String? = null) {
-//            Log.i(TAG, "sendRequest() called")
-            if (immobilizerController.isConnected && address == immobilizerController.deviceAddress) {
-                Log.i(TAG, "sendRequest() called on a connected device")
-                immobilizerController.onUserRequest(request)
-            } else if (btAdapter.isEnabled) {
-                Log.i(TAG, "sendRequest() called on a disconnected device")
-                btDevice = btAdapter.getRemoteDevice(address)
-                immobilizerController.initConnection(btDevice, request, name)
-            }
-        }
-
-        /**
-         * Rename an immobilizer
-         * @param address Address of the immobilizer
-         * @param name The desired user-facing name of the immobilizer
-         */
-        fun renameImmobilizer(address: String, name: String) {
-            immobilizerController.renameImmobilizer(address, name)
-        }
     }
 
     override fun onCreate() {
         super.onCreate()
         // TODO("Refactor PhoneStateMachine agar tidak ter-couple ke TextView langsung")
-//        broadcastManager = LocalBroadcastManager.getInstance(this)
-        smHandler = ImmobilizerHandler(this)
-        job = Job()
-        ImmobilizerRepository.handler = smHandler
-        immobilizerController = PhoneStateMachine(this, smHandler)
-        btAdapter = BluetoothAdapter.getDefaultAdapter().apply { enable() }
+        immobilizerController = ImmobilizerController(this@ImmobilizerService).apply {
+            adapter.enable()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         if (!isStarted) {
             startNotification()
-            getRegisteredImmobilizers()
             isStarted = true
         }
         return START_NOT_STICKY
@@ -209,16 +83,35 @@ class ImmobilizerService : Service(), CoroutineScope {
     }
 
     override fun onBind(intent: Intent): IBinder? {
+        super.onBind(intent)
         if (!isStarted) {
             startNotification()
             isStarted = true
+            immobilizerController.userPromptLD.observe(
+                this@ImmobilizerService,
+                Observer {
+                    showPrompt(it)
+                }
+            )
         }
         return imBinder
     }
 
+    private fun showPrompt(prompt: UserPrompt?) {
+        if (prompt == null || !prompt.showPrompt)
+            return
+        when (prompt.promptType) {
+            ImmobilizerIOEvent.MESSAGE_PROMPT_PIN.code -> {
+                activatePinScreen(prompt.promptMessage)
+            }
+            ImmobilizerIOEvent.MESSAGE_PROMPT_RENAME.code -> {
+                activateRenameScreen(prompt.promptMessage)
+            }
+        }
+    }
+
     override fun onDestroy() {
-        job.cancel()
-        immobilizerController.disconnect()
+        immobilizerController.stopBtClient()
         super.onDestroy()
     }
 
@@ -261,15 +154,15 @@ class ImmobilizerService : Service(), CoroutineScope {
      * Refresh the LiveData of list of registered immobilizers
      */
     fun getRegisteredImmobilizers() {
-        launch {
-            val list =
-                ImmobilizerRepository.getImmobilizerList(this@ImmobilizerService)
-            immobilizerListLD.postValue(list)
-        }
+//        launch {
+//            val list =
+//                ImmobilizerRepository.getImmobilizerList(this@ImmobilizerService)
+//            immobilizerListLD.postValue(list)
+//        }
     }
 
     /**
-     * Show the device naming promp
+     * Show the device naming prompt
      * @param address Address of the immobilizer to be named
      */
     fun activateRenameScreen(address: String) {

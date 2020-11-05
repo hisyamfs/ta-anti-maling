@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
-import android.content.Context
 import android.os.Handler
 import android.util.Base64
 import android.util.Log
@@ -24,16 +23,14 @@ import javax.crypto.SecretKey
  * @param context Context of service caller
  * @param handler Service caller's handler, to notify caller of new data
  */
-class MyBluetoothService(context: Context, handler: Handler) {
-    private var btAdapter: BluetoothAdapter? = null
+class ImmobilizerBluetoothService(private val btHandler: Handler) {
+    val btAdapter: BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
     private var btAcceptThread: AcceptThread? = null
     private var btConnectThread: ConnectThread? = null
     private var btConnectedThread: ConnectedThread? = null
     private var btDevice: BluetoothDevice? = null
-    private var btState: Int = 0
-    private var btNewState: Int = 0
-    private var btContext: Context? = null
-    private var btHandler: Handler? = null
+    private var btState: Int = STATE_NONE
+    private var btNewState: Int = btState
     private var btEncryptionKey: SecretKey? = null
     // TODO("Buat agar perubahan nilai useOutputEncryption dan useInputDecryption di-pass ke handler.")
     var useOutputEncryption = false
@@ -54,14 +51,6 @@ class MyBluetoothService(context: Context, handler: Handler) {
         const val MESSAGE_DEVICE_NAME: Int = 3
         const val CONNECTION_START: Int = 4
         const val CONNECTION_LOST: Int = 5
-    }
-
-    init {
-        btAdapter = BluetoothAdapter.getDefaultAdapter()
-        btState = STATE_NONE
-        btNewState = btState
-        btContext = context
-        btHandler = handler
     }
 
     /**

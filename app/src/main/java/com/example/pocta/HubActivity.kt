@@ -2,7 +2,6 @@ package com.example.pocta
 
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -20,10 +19,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlin.coroutines.CoroutineContext
 
+
 class HubActivity : AppCompatActivity(), CoroutineScope {
     private lateinit var binding: ActivityHubBinding
-    private lateinit var receiver: BroadcastReceiver
     private var immobilizerAdapter: ImmobilizerAdapter? = null
+    private var uiStatus: String = ""
     private var list: List<Immobilizer> = emptyList()
     private val REQUEST_ENABLE_BT = 1
     private lateinit var imsInstance: ImmobilizerService
@@ -55,19 +55,22 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
     }
 
     private fun attachImmobilizerObserver() {
-        imsInstance.immobilizerStatusLD.observe(
-            this,
-            Observer {
-                binding.hubActivityStatusView.text = it
-            }
-        )
-        imsInstance.immobilizerListLD.observe(
-            this,
-            Observer {
-                list = it
-                updateImmobilizerCards()
-            }
-        )
+        ImmobilizerService.immobilizerController.apply {
+            activeImmobilizerLD.observe(
+                this@HubActivity,
+                Observer {
+                    uiStatus = "${it.name}\n${it.status}"
+                    binding.hubActivityStatusView.text = uiStatus
+                }
+            )
+            immobilizerListLD.observe(
+                this@HubActivity,
+                Observer {
+                    list = it
+                    updateImmobilizerCards()
+                }
+            )
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,16 +94,21 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             refreshListButton.setOnClickListener {
                 imsInstance.getRegisteredImmobilizers()
             }
+            hubActivityDeleteAllButton.setOnClickListener {
+                deleteAllImmobilizers()
+            }
             addImmobilizerButton.setOnClickListener { startRegisterActivity() }
             hubActivityViewLogButton.setOnClickListener { startLogActivity() }
-            hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
         }
+    }
+
+    private fun deleteAllImmobilizers() {
+        ImmobilizerService.immobilizerController.deleteAllImmobilizer()
     }
 
     override fun onStart() {
         super.onStart()
         Log.i(TAG, "onStart called")
-        binding.hubActivityStatusView.text = ImmobilizerService.immobilizerStatus
 //        imsInstance.getRegisteredImmobilizers()
 //        launch {
 //            listPairedDevices()
@@ -141,7 +149,7 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
     }
 
     private fun enableBluetooth() {
-        if (!ImmobilizerService.btAdapter.isEnabled) {
+        if (!ImmobilizerService.immobilizerController.adapter.isEnabled) {
             val turnOnBt = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivityForResult(turnOnBt, REQUEST_ENABLE_BT)
         } else {
@@ -166,21 +174,6 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             }
             else -> super.onActivityResult(requestCode, resultCode, data)
         }
-    }
-
-    private fun listPairedDevices() {
-//        list = getImmobilizerList(this)
-//        immobilizerAdapter = ImmobilizerAdapter(this, list)
-//        immobilizerAdapter?.notifyDataSetChanged()
-//        binding.pairedDevicesList.adapter = immobilizerAdapter
-//        if (list.isEmpty()) {
-//            Toast.makeText(
-//                this,
-//                "Tidak ada device immobilizer yang terdaftar!",
-//                Toast.LENGTH_SHORT
-//            ).show()
-//        }
-        imsInstance.getRegisteredImmobilizers()
     }
 
     private fun updateImmobilizerCards() {

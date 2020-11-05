@@ -32,28 +32,22 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) 
                 itemImmoName.text = immobilizer.name
                 itemImmoAddress.text = immobilizer.address
                 itemUnlockDeviceButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(
-                        USER_REQUEST.UNLOCK,
-                        immobilizer.address,
-                        immobilizer.name
+                    ImmobilizerService.immobilizerController.setActiveConnection(
+                        immobilizer, ImmobilizerUserRequest.UNLOCK
                     )
                 }
                 itemChangeUserPinButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(
-                        USER_REQUEST.CHANGE_PIN,
-                        immobilizer.address,
-                        immobilizer.name
+                    ImmobilizerService.immobilizerController.setActiveConnection(
+                        immobilizer, ImmobilizerUserRequest.CHANGE_PIN
                     )
                 }
                 itemRemovePhoneButton.setOnClickListener {
-                    ImmobilizerService.sendRequest(
-                        USER_REQUEST.REMOVE_PHONE,
-                        immobilizer.address,
-                        immobilizer.name
+                    ImmobilizerService.immobilizerController.setActiveConnection(
+                        immobilizer, ImmobilizerUserRequest.REMOVE_PHONE
                     )
                 }
                 itemToggleConnectionButton.setOnClickListener {
-                    ImmobilizerService.toggleConnection(immobilizer.address, immobilizer.name)
+                    ImmobilizerService.immobilizerController.stopBtClient()
                 }
                 itemRenameDeviceButton.setOnClickListener {
                     renameImmobilizer(immobilizer)

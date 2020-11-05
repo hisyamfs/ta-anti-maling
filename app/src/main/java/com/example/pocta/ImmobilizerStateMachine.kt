@@ -1,12 +1,8 @@
 package com.example.pocta
 
 import android.bluetooth.BluetoothDevice
-import android.content.Context
-import android.os.Handler
-import android.os.Message
 import android.util.Base64
 import android.util.Log
-import java.lang.ref.WeakReference
 import java.security.KeyPair
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
@@ -16,43 +12,6 @@ const val BT_DISCONNECT_MSG = "Saluran Bluetooth terputus."
 const val BT_CONNECT_MSG = "Saluran Bluetooth tersambung"
 
 /**
- * Enumeration of Immobilizer's Request Codes
- * @param reqString String of the request code
- */
-enum class USER_REQUEST(val reqString: String) {
-    NOTHING("!0"),
-    UNLOCK("!1"),
-    CHANGE_PIN("!2"),
-    REGISTER_PHONE("!3"),
-    REMOVE_PHONE("!4"),
-    DISABLE("!5")
-}
-
-/**
- * Handler for communication with MyBluetoothService
- * @param sm PhoneStateMachine that will receive data from MyBluetothService
- */
-class BluetoothHandler(sm: PhoneStateMachine) : Handler() {
-    private val rStateMachine = WeakReference<PhoneStateMachine>(sm)
-    override fun handleMessage(msg: Message) {
-        rStateMachine.get()?.apply {
-            when (msg.what) {
-                MyBluetoothService.MESSAGE_READ -> {
-                    val incomingBytes = msg.obj as ByteArray
-                    onBTInput(incomingBytes, msg.arg1)
-                }
-                MyBluetoothService.MESSAGE_WRITE -> {
-                    val outgoingBytes = msg.obj as ByteArray
-                    onBTOutput(outgoingBytes)
-                }
-                MyBluetoothService.CONNECTION_LOST -> onBTDisconnect()
-                MyBluetoothService.CONNECTION_START -> onBTConnection()
-            }
-        }
-    }
-}
-
-/**
  * The state machine for data processing and communication between an Android
  * phone and an ImmobilizerITB device
  *
@@ -60,13 +19,10 @@ class BluetoothHandler(sm: PhoneStateMachine) : Handler() {
  * @param extHandler Handler in the activity/service that calls the state machine, to notify
  * data update in the state machine to the callee
  */
-class PhoneStateMachine(private val context: Context, private val extHandler: Handler) {
+class ImmobilizerStateMachine(private val io: ImmobilizerStateMachineIO) {
     private var btDevice: BluetoothDevice? = null
-    private val btHandler = BluetoothHandler(this)
-    private val bt: MyBluetoothService = MyBluetoothService(context, btHandler)
-    private val cm: ImmobilizerRepository = ImmobilizerRepository
-    private var hpRSAKeyPair: KeyPair = cm.getStoredRSAKeyPair(context) ?: cm.getDefaultRSAKeyPair()
-    private var myKey: SecretKey = cm.getDefaultSymmetricKey()
+    private var hpRSAKeyPair: KeyPair = io.getRSAKey()
+    private var myKey: SecretKey = io.getDefaultKey()
     private var appState: PhoneState = DisconnectState(this)
 
     val ACK_UNL = "3"
@@ -76,16 +32,11 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
     var deviceName = btDevice?.name ?: "Device_PH"
     var deviceAddress = btDevice?.address
     var deviceStatus: String = "Disconnected"
-    var userRequest: USER_REQUEST = USER_REQUEST.NOTHING
+    var userRequest: ImmobilizerUserRequest = ImmobilizerUserRequest.NOTHING
     var isConnected: Boolean = false
 
     companion object {
         const val TAG = "PhoneStateMachine"
-        const val MESSAGE_LOG: Int = 0
-        const val MESSAGE_STATUS: Int = 1
-        const val MESSAGE_PROMPT_PIN: Int = 2
-        const val MESSAGE_PROMPT_RENAME: Int = 3
-        const val MESSAGE_DB_UPDATE: Int = 4
     }
 
     /**
@@ -114,7 +65,7 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      * New user request event
      * @param req New user request
      */
-    fun onUserRequest(req: USER_REQUEST) {
+    fun onUserRequest(req: ImmobilizerUserRequest) {
         userRequest = req
         appState.onUserRequest()
     }
@@ -139,16 +90,17 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
     /**
      * Initialize connection to a device
      * @param device The target device
-     * @param req Initial user request
-     * @param custom_name The user facing device name, to be shown on the UI
+     * @param initialRequest Initial user request
+     * @param customName The user facing device name, to be shown on the UI
      * @note If req is not {@link USER_REQUEST#NOTHING}, onUserRequest event will be triggered
      * at the end of function call
      * @note Will disconnect from the currently connected device
      */
     fun initConnection(
         device: BluetoothDevice,
-        req: USER_REQUEST = USER_REQUEST.NOTHING,
-        custom_name: String? = null
+        initialRequest: ImmobilizerUserRequest = ImmobilizerUserRequest.NOTHING,
+        secretKey: SecretKey,
+        customName: String? = null
     ) {
         Log.i(TAG, "Initializing connection at ${device.address}")
         // Reset State and Connection
@@ -157,17 +109,18 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
 //            appState = DisconnectState(this)
         // Set private variables
         btDevice = device
-        deviceName = custom_name ?: device.name
+        deviceName = customName ?: device.name
         deviceAddress = device.address
-        userRequest = req
-        myKey = cm.getStoredKey(context, btDevice!!.address)
-        bt.apply {
-            setAESKey(myKey)
-            useOutputEncryption = false
-            useInputDecryption = false
-        }
-        if (userRequest != USER_REQUEST.NOTHING)
-            onUserRequest(req)
+        userRequest = initialRequest
+        myKey = secretKey
+        io.setAESKey(myKey)
+//        bt.apply {
+//            setAESKey(myKey)
+//            useOutputEncryption = false
+//            useInputDecryption = false
+//        }
+        if (userRequest != ImmobilizerUserRequest.NOTHING)
+            onUserRequest(initialRequest)
     }
 
     /**
@@ -176,7 +129,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun connect() {
         if (btDevice != null)
-            bt.startClient(btDevice, MyBluetoothService.uuid)
+//            bt.startClient(btDevice, MyBluetoothService.uuid)
+            io.startBtClient(btDevice!!)
         else
             Log.e(TAG, "btDevice is null")
     }
@@ -186,7 +140,7 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun disconnect() {
         isConnected = false
-        bt.stop()
+        io.stopBtClient()
     }
 
     /**
@@ -194,8 +148,9 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      * @param bytes The data to be sent
      */
     fun sendData(bytes: ByteArray) {
-        disableEncryption()
-        bt.write(bytes)
+//        disableEncryption()
+//        bt.write(bytes)
+        io.writeBt(bytes)
     }
 
     /**
@@ -203,17 +158,18 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      * @param bytes The data to be sent
      */
     fun sendEncryptedData(bytes: ByteArray) {
-        enableEncryption()
-        bt.write(bytes)
-        disableEncryption()
+//        enableEncryption()
+//        bt.write(bytes)
+//        disableEncryption()
+        io.writeBt(bytes, encrypted = true)
     }
 
     /**
      * Notify log update upstream
-     * @param str Newest log update
+     * @param logUpdate Newest log update
      */
-    fun updateLog(str: String) {
-        extHandler.obtainMessage(MESSAGE_LOG, str).sendToTarget()
+    fun updateLog(logUpdate: String) {
+        io.updateLog(logUpdate)
     }
 
     /**
@@ -222,8 +178,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun updateStatus(status: String) {
         deviceStatus = status
-        val statusStr = "$deviceName:\n$deviceStatus"
-        extHandler.obtainMessage(MESSAGE_STATUS, statusStr).sendToTarget()
+//        extHandler.obtainMessage(MESSAGE_STATUS, statusStr).sendToTarget()
+        io.updateStatus(deviceStatus)
     }
 
     /**
@@ -232,7 +188,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun promptUserPinInput(str: String) {
         updateLog(str)
-        extHandler.obtainMessage(MESSAGE_PROMPT_PIN, str).sendToTarget()
+//        extHandler.obtainMessage(MESSAGE_PROMPT_PIN, str).sendToTarget()
+        io.promptUser(ImmobilizerIOEvent.MESSAGE_PROMPT_PIN.code, str)
     }
 
     /**
@@ -243,11 +200,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
     fun promptUserNameInput(address: String?) {
         val myAddress = address ?: "0"
         updateLog("Renaming $myAddress")
-        extHandler.obtainMessage(MESSAGE_PROMPT_RENAME, myAddress).sendToTarget()
-    }
-
-    fun notifyDBUpdate() {
-        extHandler.obtainMessage(MESSAGE_DB_UPDATE).sendToTarget()
+//        extHandler.obtainMessage(MESSAGE_PROMPT_RENAME, myAddress).sendToTarget()
+        io.promptUser(ImmobilizerIOEvent.MESSAGE_PROMPT_RENAME.code, myAddress)
     }
 
     /**
@@ -255,7 +209,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun disableEncryption() {
         updateLog("Encryption Off")
-        bt.useOutputEncryption = false
+//        bt.useOutputEncryption = false
+        io.setBtEncryption(false)
     }
 
     /**
@@ -263,15 +218,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun enableEncryption() {
         updateLog("Encryption On")
-        bt.useOutputEncryption = true
-    }
-
-    /**
-     * Toggle bluetooth output encryption
-     */
-    fun toggleEncryption() {
-        if (bt.useOutputEncryption) disableEncryption()
-        else enableEncryption()
+//        bt.useOutputEncryption = true
+        io.setBtEncryption(true)
     }
 
     /**
@@ -279,7 +227,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun disableDecryption() {
         updateLog("Decryption Off")
-        bt.useInputDecryption = false
+//        bt.useInputDecryption = false
+        io.setBtDecryption(false)
     }
 
     /**
@@ -287,15 +236,8 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun enableDecryption() {
         updateLog("Decryption On")
-        bt.useInputDecryption = true
-    }
-
-    /**
-     * Toggle bluetooth input decryption
-     */
-    fun toggleDecryption() {
-        if (bt.useInputDecryption) disableDecryption()
-        else enableDecryption()
+//        bt.useInputDecryption = true
+        io.setBtDecryption(true)
     }
 
     /**
@@ -311,9 +253,9 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      * @param newKey The AES secret key to use
      */
     fun setMyAESKey(newKey: SecretKey) {
-//        cm.setStoredKey(btDevice.address, myKey)
+//        hub.setStoredKey(btDevice.address, myKey)
         myKey = newKey
-        bt.setAESKey(myKey)
+        io.setAESKey(myKey)
     }
 
     /**
@@ -322,7 +264,7 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun updateDatabase() {
         if (btDevice != null)
-            cm.setStoredKey(context, btDevice!!.address, btDevice!!.name, myKey)
+            io.addImmobilizer(btDevice!!.address, btDevice!!.name, myKey)
     }
 
     /**
@@ -331,7 +273,7 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun updateDatabase(name: String) {
         if (btDevice != null)
-            cm.setStoredKey(context, btDevice!!.address, name, myKey)
+            io.addImmobilizer(btDevice!!.address, name, myKey)
     }
 
     /**
@@ -340,7 +282,7 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      * @param name The desired user-facing name of the immobilizer
      */
     fun renameImmobilizer(address: String, name: String) {
-        cm.renameImmobilizer(context, address, name)
+        io.renameImmobilizer(address, name)
         val currentAddress = btDevice?.address ?: "0"
         if (address == currentAddress) {
             deviceName = name
@@ -353,7 +295,7 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
      */
     fun deleteAccount() {
         if (btDevice != null)
-            cm.deleteAccount(context, btDevice!!.address)
+            io.deleteImmobilizer(btDevice!!.address)
     }
 
     /**
@@ -367,13 +309,6 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
         )
         val publicKeyString = "$publicKeyHeader\n$encodedPublicKey$publicKeyBottom"
         sendData(publicKeyString.toByteArray())
-    }
-
-    /**
-     * Reset the RSA keypair stored in database/keystore
-     */
-    fun resetKeyPair() {
-        cm.resetStoredRSAKeyPair(context)
     }
 
     /**
@@ -410,32 +345,32 @@ class PhoneStateMachine(private val context: Context, private val extHandler: Ha
  * @param sm State machine that stores the state (??)
  * @note Don't mind the description
  */
-open class PhoneState(val sm: PhoneStateMachine) {
-    /** @see PhoneStateMachine#onTransition */
+open class PhoneState(val sm: ImmobilizerStateMachine) {
+    /** @see ImmobilizerStateMachine#onTransition */
     open fun onTransition() {}
 
-    /** @see PhoneStateMachine#onBTInput */
+    /** @see ImmobilizerStateMachine#onBTInput */
     open fun onBTInput(bytes: ByteArray, len: Int) {}
 
-    /** @see PhoneStateMachine#onBTOutput */
+    /** @see ImmobilizerStateMachine#onBTOutput */
     open fun onBTOutput(bytes: ByteArray) {
         val outgoingMessage = String(bytes)
         sm.updateLog("You : $outgoingMessage")
     }
 
-    /** @see PhoneStateMachine#onUserRequest */
+    /** @see ImmobilizerStateMachine#onUserRequest */
     open fun onUserRequest() {}
 
-    /** @see PhoneStateMachine#onUserInput */
+    /** @see ImmobilizerStateMachine#onUserInput */
     open fun onUserInput(bytes: ByteArray) {}
 
-    /** @see PhoneStateMachine#onBTConnection */
+    /** @see ImmobilizerStateMachine#onBTConnection */
     open fun onBTConnection() {
         sm.isConnected = true
         sm.updateLog(BT_CONNECT_MSG)
     }
 
-    /** @see PhoneStateMachine#onBTDisconnect */
+    /** @see ImmobilizerStateMachine#onBTDisconnect */
     open fun onBTDisconnect() {
         sm.isConnected = false
         sm.updateLog(BT_DISCONNECT_MSG)
@@ -446,14 +381,14 @@ open class PhoneState(val sm: PhoneStateMachine) {
  * Disconnected State. In this state the phone is not connected to any device.
  * @param sm The state machine that stores the state
  */
-class DisconnectState(sm: PhoneStateMachine) : PhoneState(sm) {
+class DisconnectState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Disconnected")
     }
 
     override fun onUserRequest() {
-        if (sm.userRequest != USER_REQUEST.NOTHING)
+        if (sm.userRequest != ImmobilizerUserRequest.NOTHING)
             sm.connect()
     }
 
@@ -472,7 +407,7 @@ class DisconnectState(sm: PhoneStateMachine) : PhoneState(sm) {
  * confirmation that it can send a request.
  * @param sm The state machine that stores the state
  */
-class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
+class ConnectState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Connecting")
@@ -511,11 +446,11 @@ class ConnectState(sm: PhoneStateMachine) : PhoneState(sm) {
  * to the device.
  * @param sm The state machine that stores the state
  */
-class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
+class RequestState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Connected, locked")
-        if (sm.userRequest != USER_REQUEST.NOTHING)
+        if (sm.userRequest != ImmobilizerUserRequest.NOTHING)
             onUserRequest()
     }
 
@@ -523,7 +458,7 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
         if (incomingMessage == sm.ACK) {
-            if (sm.userRequest == USER_REQUEST.REGISTER_PHONE) {
+            if (sm.userRequest == ImmobilizerUserRequest.REGISTER_PHONE) {
 //                sm.updateUI("To KeyExchangeState")
                 sm.sendRSAPubKey()
                 sm.changeState(KeyExchangeState(sm))
@@ -532,7 +467,7 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
                 sm.changeState(ChallengeState(sm))
             }
         } else {
-            sm.userRequest = USER_REQUEST.NOTHING
+            sm.userRequest = ImmobilizerUserRequest.NOTHING
             sm.updateLog("Request tidak dikenal atau belum diimplementasi")
         }
     }
@@ -561,7 +496,7 @@ class RequestState(sm: PhoneStateMachine) : PhoneState(sm) {
  * challenge-response verification.
  * @param sm The state machine that stores the state
  */
-class ChallengeState(sm: PhoneStateMachine) : PhoneState(sm) {
+class ChallengeState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Waiting for challenge")
@@ -591,7 +526,7 @@ class ChallengeState(sm: PhoneStateMachine) : PhoneState(sm) {
  * for confirmation from the device.
  * @param sm The state machine that stores the state
  */
-class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
+class ResponseState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Sending response")
@@ -605,7 +540,7 @@ class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
 //            sm.updateUI("To pin state")
             sm.changeState(PinState(sm))
         } else {
-            sm.userRequest = USER_REQUEST.NOTHING
+            sm.userRequest = ImmobilizerUserRequest.NOTHING
             sm.updateLog("HP anda tidak dikenal\nTo AlarmState")
             sm.changeState(AlarmState(sm))
         }
@@ -621,7 +556,7 @@ class ResponseState(sm: PhoneStateMachine) : PhoneState(sm) {
  * Pin State. In this state the phone is waiting for user to type his/her PIN.
  * @param sm The state machine that stores the state
  */
-class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
+class PinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Enter your PIN")
@@ -631,25 +566,25 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
         val oldRequest = sm.userRequest
-        sm.userRequest = USER_REQUEST.NOTHING // cegah request berulang
+        sm.userRequest = ImmobilizerUserRequest.NOTHING // cegah request berulang
         if (incomingMessage == sm.ACK) {
             sm.updateLog("Password anda benar!")
             when (oldRequest) {
-                USER_REQUEST.UNLOCK -> {
+                ImmobilizerUserRequest.UNLOCK -> {
                     sm.disableEncryption()
                     sm.changeState(UnlockState(sm))
                 }
-                USER_REQUEST.CHANGE_PIN -> {
+                ImmobilizerUserRequest.CHANGE_PIN -> {
                     sm.enableEncryption()
                     sm.promptUserPinInput("Masukkan PIN baru anda!")
                     sm.changeState(NewPinState(sm))
                 }
-                USER_REQUEST.REMOVE_PHONE -> {
+                ImmobilizerUserRequest.REMOVE_PHONE -> {
                     sm.disableEncryption()
                     sm.changeState(DeleteState(sm))
                 }
                 else -> {
-                    sm.userRequest = USER_REQUEST.NOTHING
+                    sm.userRequest = ImmobilizerUserRequest.NOTHING
                     sm.disableEncryption()
                     sm.changeState(RequestState(sm))
                 }
@@ -676,14 +611,14 @@ class PinState(sm: PhoneStateMachine) : PhoneState(sm) {
  * either lock the immobilizer or disconnect from the immobilizer.
  * @param sm The state machine that stores the state
  */
-class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
+class UnlockState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Unlocked")
         // Sebelum state ini dipanggil dari state pin, sharusnya request sudah clear.
         // Jika tidak, berarti state dipanggil dari state unlock-disconnected, yg berarti
         // pengguna meminta immobilizer kembali ke posisi lock
-        if (sm.userRequest == USER_REQUEST.UNLOCK)
+        if (sm.userRequest == ImmobilizerUserRequest.UNLOCK)
             onUserRequest()
     }
 
@@ -692,7 +627,7 @@ class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
         sm.updateLog("${sm.deviceName} : $incomingMessage")
         when (incomingMessage) {
             sm.ACK -> {
-                sm.userRequest = USER_REQUEST.NOTHING
+                sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
             }
             else -> sm.disconnect()
@@ -714,7 +649,7 @@ class UnlockState(sm: PhoneStateMachine) : PhoneState(sm) {
  * New Pin State. In this state the phone is waiting for user to type his/her new PIN.
  * @param sm The state machine that stores the state
  */
-class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
+class NewPinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Enter your new PIN")
@@ -728,12 +663,12 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
         else
             sm.updateLog("Password gagal didaftarkan")
         when (sm.userRequest) {
-            USER_REQUEST.REGISTER_PHONE -> {
+            ImmobilizerUserRequest.REGISTER_PHONE -> {
                 sm.updateDatabase()
                 sm.changeState(RegisterState(sm))
             }
             else -> {
-                sm.userRequest = USER_REQUEST.NOTHING
+                sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
             }
         }
@@ -754,12 +689,12 @@ class NewPinState(sm: PhoneStateMachine) : PhoneState(sm) {
  * Register State. Not implemented.
  * @param sm The state machine that stores the state
  */
-class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
+class RegisterState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.promptUserNameInput(sm.deviceAddress)
         sm.updateStatus("Registering device")
-        sm.userRequest = USER_REQUEST.NOTHING
+        sm.userRequest = ImmobilizerUserRequest.NOTHING
         sm.changeState(RequestState(sm))
     }
 
@@ -774,7 +709,7 @@ class RegisterState(sm: PhoneStateMachine) : PhoneState(sm) {
  * is waiting for the immobilizer to send it's AES key.
  * @param sm The state machine that stores the state
  */
-class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
+class KeyExchangeState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Exchanging key")
@@ -797,7 +732,7 @@ class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
                 // Pertukaran kunci gagal
                 sm.updateLog("Pertukaran kunci gagal!")
 //                sm.updateUI("To RequestState")
-                sm.userRequest = USER_REQUEST.NOTHING
+                sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
             }
             else -> {
@@ -822,7 +757,7 @@ class KeyExchangeState(sm: PhoneStateMachine) : PhoneState(sm) {
  * immobilizer database.
  * @param sm The state machine that stores the state
  */
-class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
+class DeleteState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Deleting account")
@@ -831,7 +766,7 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
-        sm.userRequest = USER_REQUEST.NOTHING
+        sm.userRequest = ImmobilizerUserRequest.NOTHING
         if (incomingMessage == sm.ACK) {
             sm.updateLog("Akun berhasil dihapus!")
             sm.deleteAccount()
@@ -853,10 +788,10 @@ class DeleteState(sm: PhoneStateMachine) : PhoneState(sm) {
  * is turned on.
  * @param sm The state machine that stores the state
  */
-class AlarmState(sm: PhoneStateMachine) : PhoneState(sm) {
+class AlarmState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.userRequest = USER_REQUEST.NOTHING
+        sm.userRequest = ImmobilizerUserRequest.NOTHING
         sm.updateStatus("ALARM ON!")
         sm.changeState(RequestState(sm))
     }

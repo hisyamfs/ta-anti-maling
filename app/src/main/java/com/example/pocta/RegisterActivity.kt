@@ -147,13 +147,13 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
             // get the list of registered immobilizers, and
             // store the addresses into a set
             Log.i("RegisterActivity", "Syncing to database")
-            registeredAddresses = mutableSetOf()
-            registeredImmobilizers = ImmobilizerRepository.getImmobilizerList(this)
-            registeredImmobilizers.forEach {
-                // registeredAddresses.add(it.address)
-                if (!registeredAddresses.contains(it.address))
-                    registeredAddresses.add(it.address)
-            }
+//            registeredAddresses = mutableSetOf()
+////            registeredImmobilizers = ImmobilizerService.getImmobilizerList()/
+//            registeredImmobilizers.forEach {
+//                // registeredAddresses.add(it.address)
+//                if (!registeredAddresses.contains(it.address))
+//                    registeredAddresses.add(it.address)
+//            }
 
             // do device discovery
             Log.i("RegisterActivity", "Starting Discovery")
@@ -208,13 +208,5 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
 //            )
 //            binding.unregisteredDeviceList.adapter = listAdapter
         }
-    }
-
-    private fun registerImmobilizer(unregisteredImmobilizer: UnregisteredImmobilizer) {
-        ImmobilizerService.sendRequest(
-            USER_REQUEST.REGISTER_PHONE,
-            unregisteredImmobilizer.address
-        )
-        finish()
     }
 }

@@ -38,7 +38,7 @@ class LogActivity : AppCompatActivity() {
     }
 
     private fun attachImmobilizerObserver() {
-        imsInstance.immobilizerDataLD.observe(
+        ImmobilizerService.immobilizerController.immobilizerLogLD.observe(
             this,
             Observer {
                 binding.logActivityLogView.text = it
@@ -51,29 +51,10 @@ class LogActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_log)
         binding.apply {
-            logActivityLogView.text = ImmobilizerService.immobilizerData
+            logActivityLogView.text = ""
             logActivityLogView.movementMethod = ScrollingMovementMethod()
         }
         ImmobilizerService.bindService(this, imsConnection)
-//        receiver = object : BroadcastReceiver() {
-//            override fun onReceive(context: Context?, intent: Intent?) {
-//                binding.logActivityLogView.text = ImmobilizerService.immobilizerData
-//            }
-//        }
-    }
-
-//    override fun onStart() {
-//        super.onStart()
-////        LocalBroadcastManager.getInstance(this)
-////            .registerReceiver(
-////                receiver,
-////                IntentFilter(IMMOBILIZER_SERVICE_LOG)
-////            )
-//    }
-
-    override fun onResume() {
-        super.onResume()
-        binding.logActivityLogView.text = ImmobilizerService.immobilizerData
     }
 
     override fun onStop() {

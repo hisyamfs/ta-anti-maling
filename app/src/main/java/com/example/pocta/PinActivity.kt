@@ -12,7 +12,8 @@ class PinActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPinBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val hint = intent.getStringExtra(IMMOBILIZER_SERVICE_PROMPT_MESSAGE) ?: "Masukkan PIN Anda!"
+        val hint =
+            intent.getStringExtra(IMMOBILIZER_SERVICE_PROMPT_MESSAGE) ?: "Masukkan PIN Anda!"
         binding = DataBindingUtil.setContentView(this, R.layout.activity_pin)
         binding.apply {
             pinScreenHeader.text = hint
@@ -38,33 +39,24 @@ class PinActivity : AppCompatActivity() {
         )
     }
 
-    override fun onStop() {
+    private fun finishPrompt() {
         val inputMethodManager =
             getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         inputMethodManager.hideSoftInputFromWindow(
             binding.pinScreenInputField.windowToken, 0
         )
-        super.onStop()
+        ImmobilizerService.immobilizerController.clearPrompt()
+        finish()
     }
 
     private fun cancelPin() {
-        ImmobilizerService.immobilizerController.disconnect()
-        val inputMethodManager =
-            getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        inputMethodManager.hideSoftInputFromWindow(
-            binding.pinScreenInputField.windowToken, 0
-        )
-        finish()
+        ImmobilizerService.immobilizerController.stopBtClient()
+        finishPrompt()
     }
 
     private fun sendPin() {
         val pin = binding.pinScreenInputField.text.toString()
-        ImmobilizerService.immobilizerController.onUserInput(pin.toByteArray())
-        val inputMethodManager =
-            getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        inputMethodManager.hideSoftInputFromWindow(
-            binding.pinScreenInputField.windowToken, 0
-        )
-        finish()
+        ImmobilizerService.immobilizerController.setUserInput(pin.toByteArray())
+        finishPrompt()
     }
 }
