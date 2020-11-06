@@ -9,6 +9,7 @@ import android.content.ServiceConnection
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
@@ -67,6 +68,13 @@ class ImmobilizerService : LifecycleService() {
         immobilizerController = ImmobilizerController(this@ImmobilizerService).apply {
             adapter.enable()
         }
+        immobilizerController.userPromptLD.observe(
+            this@ImmobilizerService,
+            Observer {
+                val prompt: UserPrompt = it
+                showPrompt(prompt)
+            }
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -87,12 +95,6 @@ class ImmobilizerService : LifecycleService() {
         if (!isStarted) {
             startNotification()
             isStarted = true
-            immobilizerController.userPromptLD.observe(
-                this@ImmobilizerService,
-                Observer {
-                    showPrompt(it)
-                }
-            )
         }
         return imBinder
     }
@@ -100,6 +102,7 @@ class ImmobilizerService : LifecycleService() {
     private fun showPrompt(prompt: UserPrompt?) {
         if (prompt == null || !prompt.showPrompt)
             return
+        Log.i(TAG, "showPrompt() called")
         when (prompt.promptType) {
             ImmobilizerIOEvent.MESSAGE_PROMPT_PIN.code -> {
                 activatePinScreen(prompt.promptMessage)

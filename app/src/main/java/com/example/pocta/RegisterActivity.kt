@@ -3,17 +3,16 @@ package com.example.pocta
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityRegisterBinding
 import kotlinx.coroutines.CoroutineScope
@@ -28,15 +27,41 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
     private var btDevices: MutableList<BluetoothDevice> = mutableListOf()
     private val REQUEST_ENABLE_BT = 1
     private var isBTOn = false
-    private lateinit var registeredImmobilizers: List<Immobilizer>
-    private lateinit var registeredAddresses: MutableSet<String>
+    private var registeredAddresses: List<String> = emptyList()
     private lateinit var listAdapter: ArrayAdapter<BluetoothDevice>
     private lateinit var unregisteredAdapter: UnregisteredImmobilizerAdapter
     private var uImmobilizers: MutableList<UnregisteredImmobilizer> = mutableListOf()
+    private lateinit var imsInstance: ImmobilizerService
+    private var isIMSBound = false
 
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
     private lateinit var job: Job
+
+    private val imsConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder =
+                service as ImmobilizerService.ImmobilizerBinder
+            imsInstance = binder.getService()
+            isIMSBound = true
+            attachImmobilizerObserver()
+            Log.i(TAG, "Immobilizer Service Bound")
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isIMSBound = false
+            Log.i(TAG, "Immobilizer Service Unbound")
+        }
+    }
+
+    private fun attachImmobilizerObserver() {
+        ImmobilizerService.immobilizerController.addressListLD.observe(
+            this,
+            Observer {
+                registeredAddresses = it
+            }
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +79,7 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
         )
 
         unregisteredAdapter = UnregisteredImmobilizerAdapter(this, emptyList())
+        ImmobilizerService.bindService(this@RegisterActivity, imsConnection)
 
         binding.apply {
             registerEnableBtButton.setOnClickListener { enableBT() }
@@ -105,6 +131,7 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
 
     override fun onDestroy() {
         super.onDestroy()
+        unbindService(imsConnection)
         unregisterReceiver(receiver)
     }
 
