@@ -19,7 +19,7 @@ const val BT_CONNECT_MSG = "Saluran Bluetooth tersambung"
  * @param extHandler Handler in the activity/service that calls the state machine, to notify
  * data update in the state machine to the callee
  */
-class ImmobilizerStateMachine(private val io: ImmobilizerStateMachineIO) {
+class ImmobilizerStateMachine(val io: ImmobilizerStateMachineIO) {
     private var btDevice: BluetoothDevice? = null
     private var hpRSAKeyPair: KeyPair = io.getRSAKey()
     private var myKey: SecretKey = io.getDefaultKey()
