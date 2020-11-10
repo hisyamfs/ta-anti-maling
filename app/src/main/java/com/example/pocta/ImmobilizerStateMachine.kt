@@ -24,7 +24,7 @@ class ImmobilizerStateMachine(val io: ImmobilizerStateMachineIO) {
     private var hpRSAKeyPair: KeyPair = io.getRSAKey()
     private var myKey: SecretKey = io.getDefaultKey()
     private var appState: PhoneState = DisconnectState(this)
-
+    val RETRY = "4"
     val ACK_UNL = "3"
     val ERR = "2"
     val ACK = "1"
@@ -557,41 +557,49 @@ class ResponseState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
  * @param sm The state machine that stores the state
  */
 class PinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
+    private var oldRequest = ImmobilizerUserRequest.NOTHING
+
     override fun onTransition() {
         super.onTransition()
         sm.updateStatus("Enter your PIN")
+        oldRequest = sm.userRequest
+        sm.userRequest = ImmobilizerUserRequest.NOTHING // cegah request berulang
     }
 
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
-        val oldRequest = sm.userRequest
-        sm.userRequest = ImmobilizerUserRequest.NOTHING // cegah request berulang
-        if (incomingMessage == sm.ACK) {
-            sm.updateLog("Password anda benar!")
-            when (oldRequest) {
-                ImmobilizerUserRequest.UNLOCK -> {
-                    sm.disableEncryption()
-                    sm.changeState(UnlockState(sm))
-                }
-                ImmobilizerUserRequest.CHANGE_PIN -> {
-                    sm.enableEncryption()
-                    sm.promptUserPinInput("Masukkan PIN baru anda!")
-                    sm.changeState(NewPinState(sm))
-                }
-                ImmobilizerUserRequest.REMOVE_PHONE -> {
-                    sm.disableEncryption()
-                    sm.changeState(DeleteState(sm))
-                }
-                else -> {
-                    sm.userRequest = ImmobilizerUserRequest.NOTHING
-                    sm.disableEncryption()
-                    sm.changeState(RequestState(sm))
+        when (incomingMessage) {
+            sm.ACK -> {
+                sm.updateLog("Password anda benar!")
+                when (oldRequest) {
+                    ImmobilizerUserRequest.UNLOCK -> {
+                        sm.disableEncryption()
+                        sm.changeState(UnlockState(sm))
+                    }
+                    ImmobilizerUserRequest.CHANGE_PIN -> {
+                        sm.enableEncryption()
+                        sm.promptUserPinInput("Masukkan PIN baru anda!")
+                        sm.changeState(NewPinState(sm))
+                    }
+                    ImmobilizerUserRequest.REMOVE_PHONE -> {
+                        sm.disableEncryption()
+                        sm.changeState(DeleteState(sm))
+                    }
+                    else -> {
+                        sm.userRequest = ImmobilizerUserRequest.NOTHING
+                        sm.disableEncryption()
+                        sm.changeState(RequestState(sm))
+                    }
                 }
             }
-        } else {
-            sm.updateLog("Password anda salah")
-            sm.changeState(AlarmState(sm))
+            sm.RETRY -> {
+                sm.promptUserPinInput("Masukkan PIN anda!")
+            }
+            else -> {
+                sm.updateLog("Password anda salah")
+                sm.changeState(AlarmState(sm))
+            }
         }
     }
 

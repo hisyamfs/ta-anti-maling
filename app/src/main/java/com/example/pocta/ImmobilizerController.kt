@@ -50,12 +50,16 @@ class ImmobilizerController(private val context: Context) : ImmobilizerStateMach
         immobilizer: Immobilizer,
         initRequest: ImmobilizerUserRequest
     ) {
-        if (stateMachine.isConnected && immobilizer.address == stateMachine.deviceAddress)
+        if (stateMachine.isConnected && immobilizer.address == stateMachine.deviceAddress) {
+            activeImmobilizer.name = immobilizer.name
+            activeImmobilizerLD.postValue(activeImmobilizer)
             stateMachine.onUserRequest(initRequest)
-        else if (adapter.isEnabled) {
+        } else if (adapter.isEnabled) {
             val decryptedKey =
                 cm.decryptSecretKey(immobilizer.key, userKeyPair.private)
             val device = adapter.getRemoteDevice(immobilizer.address)
+            activeImmobilizer.name = immobilizer.name
+            activeImmobilizerLD.postValue(activeImmobilizer)
             stateMachine.initConnection(device, initRequest, decryptedKey, immobilizer.name)
         } else
             Log.i(TAG, "Bluetooth not enabled")
