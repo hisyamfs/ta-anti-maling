@@ -50,6 +50,8 @@ class LogActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_log)
+        setSupportActionBar(binding.logActivityToolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.apply {
             logActivityLogView.text = ""
             logActivityLogView.movementMethod = ScrollingMovementMethod()

@@ -1,29 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:context=".RegisterActivity">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/register_activity_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+
         <Button
             android:id="@+id/register_enableBtButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Hidupkan BT"
-            android:layout_margin="8dp"/>
+            android:layout_margin="8dp"
+            android:text="Hidupkan BT" />
+
         <Button
             android:id="@+id/register_refreshListButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Refresh"
-            android:layout_margin="8dp" />
-        <ListView
-            android:id="@+id/unregistered_device_list"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_margin="8dp"
+            android:text="Refresh" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/unregistered_device_r_list"
             android:layout_width="match_parent"

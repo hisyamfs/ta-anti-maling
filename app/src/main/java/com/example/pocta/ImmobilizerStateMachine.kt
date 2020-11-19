@@ -594,10 +594,10 @@ class PinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
                 }
             }
             sm.RETRY -> {
-                sm.promptUserPinInput("Masukkan PIN anda!")
+                sm.promptUserPinInput("PIN yang anda masukkan sebelumnya salah. Silakan coba lagi!")
             }
             else -> {
-                sm.updateLog("Password anda salah")
+                sm.updateLog("PIN anda salah")
                 sm.changeState(AlarmState(sm))
             }
         }

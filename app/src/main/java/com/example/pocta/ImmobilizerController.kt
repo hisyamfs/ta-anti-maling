@@ -31,7 +31,7 @@ class ImmobilizerController(private val context: Context) : ImmobilizerStateMach
     val addressListLD: LiveData<List<String>> = dao.getAddressList()
     val immobilizerLogLD: MutableLiveData<String> = MutableLiveData()
     val activeImmobilizerLD: MutableLiveData<ActiveImmobilizer> = MutableLiveData(
-        ActiveImmobilizer("", "Disconnected")
+        ActiveImmobilizer("-", "Disconnected")
     )
     val userPromptLD: MutableLiveData<UserPrompt> = MutableLiveData(
         UserPrompt(ImmobilizerIOEvent.MESSAGE_NAH.code, "Nah", false)

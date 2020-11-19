@@ -8,6 +8,8 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
@@ -77,6 +79,7 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
         super.onCreate(savedInstanceState)
         job = Job()
         binding = DataBindingUtil.setContentView(this, R.layout.activity_hub)
+        setSupportActionBar(binding.hubActivityToolbar)
         ImmobilizerService.startService(this)
         val mLayoutManager = LinearLayoutManager(
             this,
@@ -90,20 +93,38 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
                 layoutManager = mLayoutManager
                 adapter = immobilizerAdapter
             }
-            enableBtButton.setOnClickListener { enableBluetooth() }
-            refreshListButton.setOnClickListener {
-                imsInstance.getRegisteredImmobilizers()
+            hubActivityDisconnectButton.setOnClickListener {
+                ImmobilizerService.immobilizerController.stopBtClient()
             }
-            hubActivityDeleteAllButton.setOnClickListener {
-                deleteAllImmobilizers()
-            }
-            addImmobilizerButton.setOnClickListener { startRegisterActivity() }
-            hubActivityViewLogButton.setOnClickListener { startLogActivity() }
         }
     }
 
-    private fun deleteAllImmobilizers() {
-        ImmobilizerService.immobilizerController.deleteAllImmobilizer()
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.hub_menu, menu)
+        return true
+    }
+
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_delete_all -> {
+                deleteAllImmobilizers()
+            }
+            R.id.action_register_immobilizer -> {
+                startRegisterActivity()
+            }
+            R.id.action_view_log -> {
+                startLogActivity()
+            }
+            R.id.action_refresh -> {
+                imsInstance.getRegisteredImmobilizers()
+            }
+            R.id.action_enable_bluetooth -> {
+                enableBluetooth()
+            }
+            else -> return super.onOptionsItemSelected(item)
+        }
+        return true
     }
 
     override fun onStart() {
@@ -187,5 +208,9 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
                 Toast.LENGTH_SHORT
             ).show()
         }
+    }
+
+    private fun deleteAllImmobilizers() {
+        ImmobilizerService.immobilizerController.deleteAllImmobilizer()
     }
 }

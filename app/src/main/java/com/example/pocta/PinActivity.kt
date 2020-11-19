@@ -15,6 +15,8 @@ class PinActivity : AppCompatActivity() {
         val hint =
             intent.getStringExtra(IMMOBILIZER_SERVICE_PROMPT_MESSAGE) ?: "Masukkan PIN Anda!"
         binding = DataBindingUtil.setContentView(this, R.layout.activity_pin)
+        setSupportActionBar(binding.pinActivityToolbar)
+//        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.apply {
             pinScreenHeader.text = hint
             pinScreenSendButton.setOnClickListener { sendPin() }

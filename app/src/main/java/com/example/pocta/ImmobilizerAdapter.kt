@@ -46,9 +46,6 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) 
                         immobilizer, ImmobilizerUserRequest.REMOVE_PHONE
                     )
                 }
-                itemToggleConnectionButton.setOnClickListener {
-                    ImmobilizerService.immobilizerController.stopBtClient()
-                }
                 itemRenameDeviceButton.setOnClickListener {
                     renameImmobilizer(immobilizer)
                 }

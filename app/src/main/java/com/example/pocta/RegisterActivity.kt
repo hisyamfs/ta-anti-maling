@@ -7,7 +7,6 @@ import android.content.*
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -67,6 +66,8 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
         super.onCreate(savedInstanceState)
         job = Job()
         binding = DataBindingUtil.setContentView(this, R.layout.activity_register)
+        setSupportActionBar(binding.registerActivityToolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         btAdapter = BluetoothAdapter.getDefaultAdapter()
         listAdapter = ArrayAdapter(
             this,
@@ -97,7 +98,6 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
             unregisteredDeviceRList.adapter = unregisteredAdapter
 
 //            unregisteredDeviceList.adapter = listAdapter
-            unregisteredDeviceList.visibility = View.GONE
 //            unregisteredDeviceList.setOnItemClickListener { _, _, position, _ ->
 //                val selectedDevice =
 //                    unregisteredDeviceList.getItemAtPosition(position) as BluetoothDevice

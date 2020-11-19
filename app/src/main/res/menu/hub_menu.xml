@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_register_immobilizer"
+        android:icon="@drawable/ic_add_white_24dp"
+        android:title="Tambah Immobilizer"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_enable_bluetooth"
+        android:title="Hidupkan Bluetooth"
+        android:icon="@drawable/ic_bluetooth_white_24dp"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_view_log"
+        android:title="Lihat Log"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_refresh"
+        android:title="Refresh List"
+        android:icon="@drawable/ic_refresh_black_24dp"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_delete_all"
+        android:title="Hapus Semua Akun"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_tutorial"
+        android:title="Tutorial"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="Pengaturan"
+        app:showAsAction="never" />
+
+</menu>

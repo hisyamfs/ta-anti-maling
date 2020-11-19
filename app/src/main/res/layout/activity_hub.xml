@@ -1,76 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:card_view="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".HubActivity">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        tools:context=".HubActivity">
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/hub_activity_status_view"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:textSize="16sp"
-            tools:text="Honda Beat: Unlocked" />
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/hub_activity_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Dark" />
 
-        <LinearLayout
+        <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="end"
-            android:orientation="horizontal">
+            android:layout_gravity="center"
+            android:layout_margin="16dp"
+            android:orientation="vertical"
+            card_view:cardCornerRadius="4dp"
+            card_view:cardElevation="10dp">
 
-            <Button
-                android:id="@+id/addImmobilizerButton"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:text="Tambah Immo" />
+                android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/enableBtButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:text="Hidupkan BT" />
+                <TextView
+                    android:id="@+id/hub_activity_status_view"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="12dp"
+                    android:layout_weight="0.9"
+                    android:textSize="16sp"
+                    tools:text="Honda Beat: Unlocked" />
 
-            <Button
-                android:id="@+id/refreshListButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:text="@string/refreshListButton" />
-        </LinearLayout>
+                <ImageButton
+                    android:id="@+id/hub_activity_disconnect_button"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_margin="8dp"
+                    android:layout_weight="0.1"
+                    android:background="?attr/selectableItemBackground"
+                    android:src="@drawable/ic_clear_white_24dp" />
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/pairedDevicesList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="8dp" />
-
-        <Button
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:text="Lihat Log"
-            android:id="@+id/hub_activity_view_log_button" />
-
-        <Button
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:visibility="gone"
-            android:text="Backup"
-            android:id="@+id/hub_activity_backup_button"/>
-
-        <Button
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:text="Hapus semua akun"
-            android:id="@+id/hub_activity_delete_all_button" />
     </LinearLayout>
 </layout>
