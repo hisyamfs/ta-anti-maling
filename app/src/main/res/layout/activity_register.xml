@@ -11,6 +11,7 @@
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/register_activity_toolbar"
+            app:title="MotoProtect Register"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"

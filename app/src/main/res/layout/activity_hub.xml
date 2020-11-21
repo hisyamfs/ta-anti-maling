@@ -12,6 +12,7 @@
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/hub_activity_toolbar"
+            app:title="MotoProtect"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
@@ -48,7 +49,7 @@
                     android:layout_margin="8dp"
                     android:layout_weight="0.1"
                     android:background="?attr/selectableItemBackground"
-                    android:src="@drawable/ic_clear_white_24dp" />
+                    android:src="@drawable/ic_clear_white_36dp" />
 
             </LinearLayout>
 

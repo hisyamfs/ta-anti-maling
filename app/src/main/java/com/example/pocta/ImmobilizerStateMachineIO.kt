@@ -39,7 +39,7 @@ interface ImmobilizerStateMachineIO {
     fun startBtClient(device: BluetoothDevice, uuid: UUID = IMMO_UUID)
     fun stopBtClient()
     fun updateLog(logUpdate: String)
-    fun updateStatus(statusUpdate: String)
+    fun updateStatus(deviceName: String, statusUpdate: String)
     fun promptUser(promptView: Int, promptMessage: String)
     fun clearPrompt()
     fun renameImmobilizer(address: String, newName: String)

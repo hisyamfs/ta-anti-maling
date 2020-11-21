@@ -45,7 +45,7 @@ class ImmobilizerStateMachineUnitTest {
         // Connect state
         val ack = immobilizerSM!!.ACK.toByteArray()
         verify(immobilizerIOMock)!!
-            .updateStatus("Connecting")
+            .updateStatus(, "Connecting")
         verify(immobilizerIOMock)!!
             .writeBt(ack, false)
         immobilizerSM!!.onBTInput(ack, ack.size)
@@ -74,7 +74,7 @@ class ImmobilizerStateMachineUnitTest {
         // Request state
         immobilizerSM!!.onBTDisconnect()
         // Disconnect state
-        verify(immobilizerIOMock)!!.updateStatus("Disconnected")
+        verify(immobilizerIOMock)!!.updateStatus(, "Disconnected")
     }
 
     @After

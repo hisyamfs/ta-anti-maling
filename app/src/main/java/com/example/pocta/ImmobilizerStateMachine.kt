@@ -179,7 +179,7 @@ class ImmobilizerStateMachine(val io: ImmobilizerStateMachineIO) {
     fun updateStatus(status: String) {
         deviceStatus = status
 //        extHandler.obtainMessage(MESSAGE_STATUS, statusStr).sendToTarget()
-        io.updateStatus(deviceStatus)
+        io.updateStatus(deviceName, deviceStatus)
     }
 
     /**
@@ -384,7 +384,8 @@ open class PhoneState(val sm: ImmobilizerStateMachine) {
 class DisconnectState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateStatus("Disconnected")
+//        sm.updateStatus("Disconnected")
+        sm.io.updateStatus("-", "Disconnected")
     }
 
     override fun onUserRequest() {
@@ -449,7 +450,7 @@ class ConnectState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
 class RequestState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
     override fun onTransition() {
         super.onTransition()
-        sm.updateStatus("Connected, locked")
+        sm.updateStatus("Locked")
         if (sm.userRequest != ImmobilizerUserRequest.NOTHING)
             onUserRequest()
     }
@@ -663,19 +664,30 @@ class NewPinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
         sm.updateStatus("Enter your new PIN")
     }
 
+    // Disgusting code, whatever.
+    // Eww.
     override fun onBTInput(bytes: ByteArray, len: Int) {
         val incomingMessage = String(bytes, 0, len)
         sm.updateLog("${sm.deviceName} : $incomingMessage")
-        if (incomingMessage == sm.ACK)
-            sm.updateLog("Password berhasil diperbaharui!")
-        else
-            sm.updateLog("Password gagal didaftarkan")
-        when (sm.userRequest) {
-            ImmobilizerUserRequest.REGISTER_PHONE -> {
-                sm.updateDatabase()
-                sm.changeState(RegisterState(sm))
+        when (incomingMessage) {
+            sm.ACK -> {
+                sm.updateLog("Password berhasil diperbaharui!")
+                when (sm.userRequest) {
+                    ImmobilizerUserRequest.REGISTER_PHONE -> {
+                        sm.updateDatabase()
+                        sm.changeState(RegisterState(sm))
+                    }
+                    else -> {
+                        sm.userRequest = ImmobilizerUserRequest.NOTHING
+                        sm.changeState(RequestState(sm))
+                    }
+                }
+            }
+            sm.RETRY -> {
+                sm.promptUserPinInput("Ulangi PIN baru anda!")
             }
             else -> {
+                sm.updateLog("Password gagal didaftarkan")
                 sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
             }
@@ -694,7 +706,8 @@ class NewPinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
 }
 
 /**
- * Register State. Not implemented.
+ * Register State. After the device is succesfully registered, will prompt the user
+ * to name the device
  * @param sm The state machine that stores the state
  */
 class RegisterState(sm: ImmobilizerStateMachine) : PhoneState(sm) {

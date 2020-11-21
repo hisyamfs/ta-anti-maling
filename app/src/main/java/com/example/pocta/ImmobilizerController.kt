@@ -39,7 +39,7 @@ class ImmobilizerController(private val context: Context) : ImmobilizerStateMach
 
     /** Helper variables **/
     private val userKeyPair = getRSAKey()
-    private var activeImmobilizer = ActiveImmobilizer("", "Disconnected")
+    var activeImmobilizer = ActiveImmobilizer("-", "Disconnected")
     private val TAG = "ImmobilizerController"
 
     /** ImmobilizerStateMachineIO Implementations **/
@@ -127,7 +127,8 @@ class ImmobilizerController(private val context: Context) : ImmobilizerStateMach
         immobilizerLogLD.postValue(newLog)
     }
 
-    override fun updateStatus(statusUpdate: String) {
+    override fun updateStatus(deviceName: String, statusUpdate: String) {
+        activeImmobilizer.name = deviceName
         activeImmobilizer.status = statusUpdate
         activeImmobilizerLD.postValue(activeImmobilizer)
     }
@@ -195,8 +196,10 @@ class BluetoothHandler(controller: ImmobilizerController) : Handler() {
                     val outgoingBytes = msg.obj as ByteArray
                     stateMachine.onBTOutput(outgoingBytes)
                 }
-                ImmobilizerBluetoothService.CONNECTION_LOST ->
+                ImmobilizerBluetoothService.CONNECTION_LOST -> {
+//                    activeImmobilizer.name = "-"
                     stateMachine.onBTDisconnect()
+                }
                 ImmobilizerBluetoothService.CONNECTION_START ->
                     stateMachine.onBTConnection()
             }

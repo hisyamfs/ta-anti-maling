@@ -11,6 +11,7 @@
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/log_activity_toolbar"
+            app:title="MotoProtect Log"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
