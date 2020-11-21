@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">PoC TA</string>
+    <string name="app_name">MotoProtect</string>
     <string name="enter_your_pin">Masukkan PIN anda....</string>
     <string name="ok">OK</string>
     <string name="forgot_your_pin">Lupa PIN?</string>

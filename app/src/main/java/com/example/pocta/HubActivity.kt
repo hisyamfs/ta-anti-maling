@@ -16,6 +16,8 @@ import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.pocta.databinding.ActivityHubBinding
+import com.getkeepsafe.taptargetview.TapTarget
+import com.getkeepsafe.taptargetview.TapTargetView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -122,6 +124,9 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
             R.id.action_enable_bluetooth -> {
                 enableBluetooth()
             }
+            R.id.action_tutorial -> {
+                showTutorial()
+            }
             else -> return super.onOptionsItemSelected(item)
         }
         return true
@@ -212,5 +217,37 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
 
     private fun deleteAllImmobilizers() {
         ImmobilizerService.immobilizerController.deleteAllImmobilizer()
+    }
+
+    private fun showTutorial() {
+        TapTargetView.showFor(
+            this,
+            TapTarget.forToolbarMenuItem(
+                binding.hubActivityToolbar,
+                R.id.action_register_immobilizer,
+                "Tambah Perangkat",
+                "Sentuh untuk mendaftarkan HP anda ke perangkat baru"
+            )
+                .textColor(R.color.white)
+                .cancelable(true)
+                .tintTarget(false),
+                object : TapTargetView.Listener() {
+                    override fun onTargetClick(view: TapTargetView) {
+                        super.onTargetClick(view)
+                        view.dismiss(true)
+                    }
+                }
+        )
+
+//        TapTargetView.showFor(this, TapTarget.forToolbarMenuItem(
+//            toolbar, R.id.action_search,
+//            getString(R.string.label_search), getString(R.string.description_search)
+//        )
+//            .cancelable(false).tintTarget(true), object : TapTargetView.Listener() {
+//            override fun onTargetClick(view: TapTargetView) {
+//                super.onTargetClick(view)
+//                view.dismiss(true)
+//            }
+//        })
     }
 }

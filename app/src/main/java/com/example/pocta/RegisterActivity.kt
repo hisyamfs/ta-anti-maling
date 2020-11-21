@@ -219,7 +219,8 @@ class RegisterActivity : AppCompatActivity(), CoroutineScope {
         )
         // Check if the device is already registered with user's phone, by checking the address
         // in the registered immobilizer list
-        if (isImmobilizer && !registeredAddresses.contains(device.address)) {
+        if (isImmobilizer && !registeredAddresses.contains(device.address)
+            && !uImmobilizers.contains(UnregisteredImmobilizer(device))) {
             // add to adapter
             uImmobilizers.add(UnregisteredImmobilizer(device))
 //            val list: List<UnregisteredImmobilizer> = uImmobilizers.toList()

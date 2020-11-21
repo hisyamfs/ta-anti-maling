@@ -12,7 +12,7 @@
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/hub_activity_toolbar"
-            app:title="MotoProtect"
+            app:title="@string/app_name"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"

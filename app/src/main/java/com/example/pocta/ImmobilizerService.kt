@@ -139,20 +139,14 @@ class ImmobilizerService : LifecycleService() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Foreground Service Immobilizer")
-            .setContentText("Is Running")
+            .setSmallIcon(R.drawable.ic_notification_icon)
+            .setContentTitle("MotoProtect")
+            .setContentText("MotoProtect is running")
             .setContentIntent(pendingIntent)
             .build()
 
         startForeground(1, notification)
     }
-
-//    fun sendResult(message: String, type: String) {
-//        val intent = Intent(type)
-//            .putExtra(type, message)
-//        broadcastManager.sendBroadcast(intent)
-//    }
 
     /**
      * Refresh the LiveData of list of registered immobilizers
