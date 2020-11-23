@@ -10,14 +10,16 @@ import android.os.IBinder
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.pocta.databinding.ActivityHubBinding
 import com.getkeepsafe.taptargetview.TapTarget
-import com.getkeepsafe.taptargetview.TapTargetView
+import com.getkeepsafe.taptargetview.TapTargetSequence
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -220,8 +222,26 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
     }
 
     private fun showTutorial() {
-        TapTargetView.showFor(
-            this,
+//        TapTargetView.showFor(
+//            this,
+//            TapTarget.forToolbarMenuItem(
+//                binding.hubActivityToolbar,
+//                R.id.action_register_immobilizer,
+//                "Tambah Perangkat",
+//                "Sentuh untuk mendaftarkan HP anda ke perangkat baru"
+//            )
+//                .textColor(R.color.white)
+//                .cancelable(true)
+//                .tintTarget(false),
+//                object : TapTargetView.Listener() {
+//                    override fun onTargetClick(view: TapTargetView) {
+//                        super.onTargetClick(view)
+//                        view.dismiss(true)
+//                    }
+//                }
+//        )
+
+        var taptargets = mutableListOf<TapTarget>(
             TapTarget.forToolbarMenuItem(
                 binding.hubActivityToolbar,
                 R.id.action_register_immobilizer,
@@ -231,23 +251,94 @@ class HubActivity : AppCompatActivity(), CoroutineScope {
                 .textColor(R.color.white)
                 .cancelable(true)
                 .tintTarget(false),
-                object : TapTargetView.Listener() {
-                    override fun onTargetClick(view: TapTargetView) {
-                        super.onTargetClick(view)
-                        view.dismiss(true)
-                    }
-                }
+            TapTarget.forView(
+                binding.hubActivityStatusView,
+                "Status Perangkat Terhubung",
+                "Menunjukkan perangkat mana yang terhubung ke HP anda dan apakah perangkat terkunci atau tidak"
+            )
+                .textColor(R.color.white)
+                .cancelable(true)
+                .tintTarget(false),
+            TapTarget.forView(
+                binding.hubActivityDisconnectButton,
+                "Tombol Disconnect ke Perangkat",
+                "Memutuskan sambungan antara perangkat dan HP anda"
+            )
+                .textColor(R.color.white)
+                .cancelable(true)
+                .tintTarget(false)
         )
 
-//        TapTargetView.showFor(this, TapTarget.forToolbarMenuItem(
-//            toolbar, R.id.action_search,
-//            getString(R.string.label_search), getString(R.string.description_search)
-//        )
-//            .cancelable(false).tintTarget(true), object : TapTargetView.Listener() {
-//            override fun onTargetClick(view: TapTargetView) {
-//                super.onTargetClick(view)
-//                view.dismiss(true)
-//            }
-//        })
+        if (list.isNotEmpty()) {
+            val immoTapTarget = getFirstRVItem(binding.pairedDevicesList)
+            immoTapTarget?.let {
+                val unlockTapTarget =
+                    binding.pairedDevicesList.getChildViewHolder(immoTapTarget) as ImmobilizerAdapter.ViewHolder
+                taptargets.add(
+                    TapTarget.forView(
+                        unlockTapTarget.unlockView,
+                        "Tombol Unlock",
+                        "Tekan untuk mengunci atau membuka perangkat"
+                    )
+                        .textColor(R.color.white)
+                        .cancelable(true)
+                        .tintTarget(false)
+                )
+                taptargets.add(
+                    TapTarget.forView(
+                        unlockTapTarget.changePinView,
+                        "Tombol Unlock",
+                        "Tekan untuk mengganti PIN pada perangkat"
+                    )
+                        .textColor(R.color.white)
+                        .cancelable(true)
+                        .tintTarget(false)
+                )
+                taptargets.add(
+                    TapTarget.forView(
+                        unlockTapTarget.deleteView,
+                        "Tombol Hapus Akun",
+                        "Tekan untuk menghapus HP anda dari perangkat"
+                    )
+                        .textColor(R.color.white)
+                        .cancelable(true)
+                        .tintTarget(false)
+                )
+                taptargets.add(
+                    TapTarget.forView(
+                        unlockTapTarget.renameView,
+                        "Tombol Rename",
+                        "Tekan untuk mengganti nama perangkat"
+                    )
+                        .textColor(R.color.white)
+                        .cancelable(true)
+                        .tintTarget(false)
+                )
+            }
+        }
+
+        TapTargetSequence(this)
+            .targets(taptargets)
+            .listener(
+                object : TapTargetSequence.Listener {
+                    override fun onSequenceStep(lastTarget: TapTarget?, targetClicked: Boolean) {
+                    }
+
+                    override fun onSequenceFinish() {
+                    }
+
+                    override fun onSequenceCanceled(lastTarget: TapTarget?) {
+                    }
+                }
+            )
+            .start()
+    }
+
+    private fun getFirstRVItem(rv: RecyclerView): View? {
+        val layoutManager = rv.layoutManager
+        return if (layoutManager is LinearLayoutManager) {
+            val i = layoutManager.findFirstCompletelyVisibleItemPosition()
+            layoutManager.findViewByPosition(i)
+        } else null
     }
 }

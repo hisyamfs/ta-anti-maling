@@ -25,8 +25,13 @@ class ImmobilizerAdapter(context: Context, private val list: List<Immobilizer>) 
         holder.bind(list[position])
     }
 
-    inner class ViewHolder(private val binding: ItemImmobilizerBinding) :
+    inner class ViewHolder(val binding: ItemImmobilizerBinding) :
         RecyclerView.ViewHolder(binding.root) {
+        val unlockView = binding.itemUnlockDeviceButton
+        val renameView = binding.itemRenameDeviceButton
+        val changePinView = binding.itemChangeUserPinButton
+        val deleteView = binding.itemRemovePhoneButton
+
         fun bind(immobilizer: Immobilizer) {
             binding.apply {
                 itemImmoName.text = immobilizer.name
