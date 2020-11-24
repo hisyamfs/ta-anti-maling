@@ -647,7 +647,10 @@ class UnlockState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
                 sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
             }
-            else -> sm.disconnect()
+            else -> {
+                sm.showToast("Kunci perangkat terlebih dahulu")
+                sm.disconnect()
+            }
         }
     }
 
