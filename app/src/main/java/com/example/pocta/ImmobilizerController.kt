@@ -36,6 +36,9 @@ class ImmobilizerController(private val context: Context) : ImmobilizerStateMach
     val userPromptLD: MutableLiveData<UserPrompt> = MutableLiveData(
         UserPrompt(ImmobilizerIOEvent.MESSAGE_NAH.code, "Nah", false)
     )
+    val toastLD: MutableLiveData<UserPrompt> = MutableLiveData(
+        UserPrompt(ImmobilizerIOEvent.MESSAGE_TOAST.code, "", false)
+    )
 
     /** Helper variables **/
     private val userKeyPair = getRSAKey()
@@ -143,6 +146,18 @@ class ImmobilizerController(private val context: Context) : ImmobilizerStateMach
             ImmobilizerIOEvent.MESSAGE_NAH.code, "NAH", false
         )
         userPromptLD.postValue(prompt)
+    }
+
+    override fun showToast(message: String) {
+        val toast =
+            UserPrompt(ImmobilizerIOEvent.MESSAGE_TOAST.code, message, true)
+        toastLD.postValue(toast)
+    }
+
+    override fun clearToast() {
+        val toast =
+            UserPrompt(ImmobilizerIOEvent.MESSAGE_TOAST.code, "", false)
+        toastLD.postValue(toast)
     }
 
     override fun renameImmobilizer(address: String, newName: String) {

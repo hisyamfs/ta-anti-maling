@@ -204,6 +204,10 @@ class ImmobilizerStateMachine(val io: ImmobilizerStateMachineIO) {
         io.promptUser(ImmobilizerIOEvent.MESSAGE_PROMPT_RENAME.code, myAddress)
     }
 
+    fun showToast(message: String) {
+        io.showToast(message)
+    }
+
     /**
      * Disable bluetooth output encryption
      */
@@ -429,6 +433,7 @@ class ConnectState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
             }
             else -> {
                 sm.updateLog("HP anda tidak dikenal/belum terdaftar")
+                sm.showToast("HP anda tidak dikenal!")
                 // TODO("Lakukan penghapusan alamat device dari HP")
                 sm.changeState(DisconnectState(sm))
             }
@@ -469,6 +474,7 @@ class RequestState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
             }
         } else {
             sm.userRequest = ImmobilizerUserRequest.NOTHING
+            sm.showToast("Request tidak berlaku!")
             sm.updateLog("Request tidak dikenal atau belum diimplementasi")
         }
     }
@@ -543,6 +549,7 @@ class ResponseState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
         } else {
             sm.userRequest = ImmobilizerUserRequest.NOTHING
             sm.updateLog("HP anda tidak dikenal\nTo AlarmState")
+            sm.showToast("HP anda tidak dikenal!")
             sm.changeState(AlarmState(sm))
         }
     }
@@ -599,6 +606,7 @@ class PinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
             }
             else -> {
                 sm.updateLog("PIN anda salah")
+                sm.showToast("PIN yang anda masukkan salah!")
                 sm.changeState(AlarmState(sm))
             }
         }
@@ -687,7 +695,8 @@ class NewPinState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
                 sm.promptUserPinInput("Ulangi PIN baru anda!")
             }
             else -> {
-                sm.updateLog("Password gagal didaftarkan")
+                sm.updateLog("PIN gagal didaftarkan")
+                sm.showToast("PIN gagal didaftarkan!")
                 sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
             }
@@ -752,6 +761,7 @@ class KeyExchangeState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
             sm.NACK -> {
                 // Pertukaran kunci gagal
                 sm.updateLog("Pertukaran kunci gagal!")
+                sm.showToast("Pertukaran kunci gagal!")
 //                sm.updateUI("To RequestState")
                 sm.userRequest = ImmobilizerUserRequest.NOTHING
                 sm.changeState(RequestState(sm))
@@ -794,6 +804,7 @@ class DeleteState(sm: ImmobilizerStateMachine) : PhoneState(sm) {
             sm.sendData(sm.ACK.toByteArray())
         } else {
             sm.updateLog("Akun gagal dihapus!")
+            sm.showToast("Akun gagal dihapus!")
             sm.changeState(RequestState(sm))
         }
     }

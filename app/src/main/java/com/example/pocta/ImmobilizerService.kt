@@ -10,6 +10,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
@@ -71,8 +72,13 @@ class ImmobilizerService : LifecycleService() {
         immobilizerController.userPromptLD.observe(
             this@ImmobilizerService,
             Observer {
-                val prompt: UserPrompt = it
-                showPrompt(prompt)
+                showPrompt(it)
+            }
+        )
+        immobilizerController.toastLD.observe(
+            this@ImmobilizerService,
+            Observer {
+                showToast(it)
             }
         )
     }
@@ -87,9 +93,9 @@ class ImmobilizerService : LifecycleService() {
     }
 
     inner class ImmobilizerBinder : Binder() {
+
         fun getService(): ImmobilizerService = this@ImmobilizerService
     }
-
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
         if (!isStarted) {
@@ -111,6 +117,13 @@ class ImmobilizerService : LifecycleService() {
                 activateRenameScreen(prompt.promptMessage)
             }
         }
+    }
+
+    private fun showToast(toast: UserPrompt?) {
+        if (toast == null || !toast.showPrompt)
+            return
+        Log.i(TAG, "showToast() called")
+        activateToast(toast.promptMessage)
     }
 
     override fun onDestroy() {
@@ -157,6 +170,10 @@ class ImmobilizerService : LifecycleService() {
 //                ImmobilizerRepository.getImmobilizerList(this@ImmobilizerService)
 //            immobilizerListLD.postValue(list)
 //        }
+    }
+
+    private fun activateToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     /**

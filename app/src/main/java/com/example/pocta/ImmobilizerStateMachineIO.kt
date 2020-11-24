@@ -12,7 +12,8 @@ enum class ImmobilizerIOEvent(val code: Int) {
     MESSAGE_STATUS(1),
     MESSAGE_PROMPT_PIN(2),
     MESSAGE_PROMPT_RENAME(3),
-    MESSAGE_NAH(4)
+    MESSAGE_NAH(4),
+    MESSAGE_TOAST(5)
 }
 
 interface ImmobilizerStateMachineIO {
@@ -42,6 +43,8 @@ interface ImmobilizerStateMachineIO {
     fun updateStatus(deviceName: String, statusUpdate: String)
     fun promptUser(promptView: Int, promptMessage: String)
     fun clearPrompt()
+    fun showToast(message: String)
+    fun clearToast()
     fun renameImmobilizer(address: String, newName: String)
     fun addImmobilizer(address: String, name: String, key: SecretKey)
     fun deleteImmobilizer(address: String)
